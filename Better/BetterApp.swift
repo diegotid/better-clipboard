@@ -9,17 +9,19 @@ import SwiftUI
 
 @main
 struct BetterApp: App {
-    @StateObject private var clipboardController = ClipboardController()
+    @StateObject private var clipboardController: ClipboardController
+    private let menuBarController: MenuBarController
 
     init() {
+        let clipboard = ClipboardController()
+        _clipboardController = StateObject(wrappedValue: clipboard)
+        menuBarController = MenuBarController(clipboard: clipboard)
         NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     var body: some Scene {
-        MenuBarExtra("Better", systemImage: "sparkles") {
-            Clipboard()
-                .environmentObject(clipboardController)
+        Settings {
+            EmptyView()
         }
-        .menuBarExtraStyle(.window)
     }
 }
