@@ -21,6 +21,16 @@ private let SCALE_STEP: CGFloat = 0.1
 @MainActor
 final class WindowController {
     private let statusItem: NSStatusItem
+    private lazy var toggleMenuItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "",
+            action: #selector(toggleWindow(_:)),
+            keyEquivalent: "v"
+        )
+        item.keyEquivalentModifierMask = [.command, .shift]
+        item.target = self
+        return item
+    }()
     private var windows: [NSWindow] = []
     private var entries: [TransformedText] = []
     private var baseHistory: [TransformedText] = []
@@ -29,7 +39,11 @@ final class WindowController {
     private var scrollMonitor: Any?
     private let clipboard: ClipboardController
     private var resignActiveObserver: Any?
-    private var lastScrollEventTime: TimeInterval = 0 // ← For scroll cooldown
+    private var lastScrollEventTime: TimeInterval = 0
+    
+    private var showingWindows: Bool {
+        windows.contains(where: { $0.isVisible })
+    }
 
     init(clipboard: ClipboardController) {
         self.clipboard = clipboard
@@ -41,7 +55,12 @@ final class WindowController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.closeWindows()
+            guard let self else {
+                return
+            }
+            Task { @MainActor in
+                self.closeWindows()
+            }
         }
     }
 
@@ -64,7 +83,7 @@ final class WindowController {
     
     @objc
     private func toggleWindow(_ sender: Any?) {
-        if windows.contains(where: { $0.isVisible }) {
+        if showingWindows {
             closeWindows()
         } else {
             showWindows()
@@ -84,6 +103,7 @@ final class WindowController {
         layoutWindows(animated: false)
         installEventMonitors()
         NSApp.activate(ignoringOtherApps: true)
+        updateToggleMenuTitle()
     }
 
     private func closeWindows() {
@@ -101,6 +121,7 @@ final class WindowController {
             NSEvent.removeMonitor(monitor)
             scrollMonitor = nil
         }
+        updateToggleMenuTitle()
     }
 
     private func configureStatusItem() {
@@ -110,8 +131,55 @@ final class WindowController {
         button.image = NSImage(systemSymbolName: "sparkles",
                                accessibilityDescription: "Better")
         button.image?.isTemplate = true
-        button.action = #selector(toggleWindow(_:))
-        button.target = self
+        let menu = NSMenu()
+        menu.addItem(toggleMenuItem)
+        let clearItem = NSMenuItem(
+            title: "Clear Clipboard History",
+            action: #selector(clearClipboardHistoryAction(_:)),
+            keyEquivalent: "\u{8}"
+        )
+        clearItem.keyEquivalentModifierMask = [.command]
+        clearItem.target = self
+        menu.addItem(clearItem)
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(
+            withTitle: "Quit Better",
+            action: #selector(quitAction(_:)),
+            keyEquivalent: "q"
+        ).target = self
+        statusItem.menu = menu
+        updateToggleMenuTitle()
+    }
+
+    private func updateToggleMenuTitle() {
+        toggleMenuItem.title = showingWindows ? "Hide Clipboard" : "Show Clipboard"
+    }
+
+    @objc
+    private func clearClipboardHistoryAction(_ sender: Any?) {
+        let alert = NSAlert()
+        alert.messageText = "Clear Clipboard History?"
+        alert.informativeText = "This will permanently remove all clipboard items stored by Better. This action cannot be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Clear History")
+        alert.addButton(withTitle: "Cancel")
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window) { [weak self] response in
+                if response == .alertFirstButtonReturn {
+                    self?.clipboard.history = []
+                }
+            }
+        } else {
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                clipboard.history = []
+            }
+        }
+    }
+
+    @objc
+    private func quitAction(_ sender: Any?) {
+        NSApp.terminate(nil)
     }
 
     private func registerHotKey() {
