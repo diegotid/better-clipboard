@@ -37,12 +37,26 @@ final class WindowController {
     private var entryIndexLookup: [UUID: Int] = [:]
     private var keyMonitor: Any?
     private let clipboard: ClipboardController
+    private var resignActiveObserver: Any?
 
     init(clipboard: ClipboardController) {
         self.clipboard = clipboard
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         configureStatusItem()
         registerHotKey()
+        resignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.closeWindows()
+        }
+    }
+
+    deinit {
+        if let observer = resignActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     private enum RotationDirection {
