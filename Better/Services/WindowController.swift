@@ -26,8 +26,10 @@ final class WindowController {
     private var baseHistory: [TransformedText] = []
     private var entryIndexLookup: [UUID: Int] = [:]
     private var keyMonitor: Any?
+    private var scrollMonitor: Any?
     private let clipboard: ClipboardController
     private var resignActiveObserver: Any?
+    private var lastScrollEventTime: TimeInterval = 0 // ← For scroll cooldown
 
     init(clipboard: ClipboardController) {
         self.clipboard = clipboard
@@ -46,6 +48,12 @@ final class WindowController {
     deinit {
         if let observer = resignActiveObserver {
             NotificationCenter.default.removeObserver(observer)
+        }
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
         }
     }
 
@@ -74,7 +82,7 @@ final class WindowController {
         entries = history
         windows = history.map { createWindow(for: $0) }
         layoutWindows(animated: false)
-        installKeyMonitor()
+        installEventMonitors()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -88,6 +96,10 @@ final class WindowController {
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil
+        }
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
         }
     }
 
@@ -270,8 +282,7 @@ final class WindowController {
         }
     }
     
-    private func installKeyMonitor() {
-        guard keyMonitor == nil else { return }
+    private func installEventMonitors() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
             guard !self.windows.isEmpty else {
@@ -290,6 +301,29 @@ final class WindowController {
             default:
                 return event
             }
+        }
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self else { return event }
+            guard !self.windows.isEmpty else {
+                return event
+            }
+            let now = ProcessInfo.processInfo.systemUptime
+            let cooldown: TimeInterval = 0.5
+            if now - self.lastScrollEventTime < cooldown {
+                return nil
+            }
+            if abs(event.scrollingDeltaY) > 2.5 {
+                if event.scrollingDeltaY > 0 {
+                    self.rotateWheel(direction: .newer)
+                    self.lastScrollEventTime = now
+                    return nil
+                } else if event.scrollingDeltaY < 0 {
+                    self.rotateWheel(direction: .older)
+                    self.lastScrollEventTime = now
+                    return nil
+                }
+            }
+            return event
         }
     }
 
