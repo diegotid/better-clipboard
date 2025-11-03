@@ -149,10 +149,8 @@ final class WindowController {
         container.layer?.cornerRadius = 24
         container.layer?.masksToBounds = true
         let blurView = makeBlurView(container: container)
-        let tintView = makeTintView(container: container)
         let hostingView = makeHostingView(container: container, hostingController: hostingController)
         container.addSubview(blurView)
-        container.addSubview(tintView)
         container.addSubview(hostingView)
         window.contentView = container
         return window
@@ -162,18 +160,9 @@ final class WindowController {
         let view = NSVisualEffectView(frame: container.bounds)
         view.autoresizingMask = [.width, .height]
         view.blendingMode = .behindWindow
-        view.material = .fullScreenUI
+        view.material = .hudWindow
         view.state = .active
         view.isEmphasized = true
-        return view
-    }
-
-    private func makeTintView(container: NSView) -> NSView {
-        let view = NSView(frame: container.bounds)
-        view.autoresizingMask = [.width, .height]
-        view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: 0.12).cgColor
-        view.identifier = NSUserInterfaceItemIdentifier("tint")
         return view
     }
 
