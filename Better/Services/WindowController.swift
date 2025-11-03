@@ -11,6 +11,7 @@ import SwiftUI
 import QuartzCore
 
 private let ESCAPE_KEY_CODE: Int = 53
+private let RETURN_KEY_CODE: UInt16 = 36
 private let WINDOW_WIDTH: CGFloat = 600
 private let WINDOW_HEIGHT: CGFloat = 500
 private let OFFSET_STEP: Int = 110
@@ -366,6 +367,12 @@ final class WindowController {
             case UInt16(ESCAPE_KEY_CODE):
                 self.closeWindows()
                 return nil
+            case RETURN_KEY_CODE:
+                if let firstEntry = self.entries.first {
+                    self.copyToPasteboard(firstEntry.original)
+                }
+                self.closeWindows()
+                return nil
             default:
                 return event
             }
@@ -393,6 +400,12 @@ final class WindowController {
             }
             return event
         }
+    }
+
+    private func copyToPasteboard(_ string: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
     }
 
     private func rotateWheel(direction: RotationDirection) {
