@@ -10,12 +10,12 @@ import SwiftUI
 @main
 struct BetterApp: App {
     @StateObject private var clipboardController: ClipboardController
-    private let menuBarController: MenuBarController
+    private let menuBarController: WindowController
 
     init() {
         let clipboard = ClipboardController()
         _clipboardController = StateObject(wrappedValue: clipboard)
-        menuBarController = MenuBarController(clipboard: clipboard)
+        menuBarController = WindowController(clipboard: clipboard)
         NSApplication.shared.setActivationPolicy(.accessory)
     }
 

@@ -10,16 +10,25 @@ import Foundation
 
 @MainActor
 final class ClipboardController: ObservableObject {
-    @Published var history: [TransformedText] = []
+    @Published var history: [TransformedText] = [] {
+        didSet {
+            saveHistory()
+        }
+    }
+    
+    private let CAPACITY: Int = 30
 
     private let watcher = ClipboardWatcher()
-//    private let translator = Translator()
+    private let historyFileURL: URL = {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let folder = dir.appendingPathComponent("Better", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder.appendingPathComponent("clipboard-history.json")
+    }()
 
     init() {
+        loadHistory()
         start()
-//        Task {
-//            await translator.configure(target: Locale.Language(identifier: targetCode))
-//        }
     }
 
     func start() {
@@ -32,25 +41,32 @@ final class ClipboardController: ObservableObject {
                 guard !trimmed.isEmpty else {
                     return
                 }
-//                    let target = Locale.Language(identifier: self.targetCode)
-//                    await self.translator.reconfigureIfNeeded(target: target)
-//                    let out = try await self.translator.translate(trimmed)
                 await MainActor.run {
-                    let text = TransformedText(original: trimmed, date: Date())
-                    self.history.insert(text, at: 0)
+                    let entry = TransformedText(original: trimmed, date: Date())
+                    let updated = [entry] + self.history
+                    self.history = Array(updated.prefix(self.CAPACITY))
                 }
             }
         }
     }
 
-    func stop() {
-        watcher.stop()
+    private func saveHistory() {
+        do {
+            let data = try JSONEncoder().encode(history)
+            try data.write(to: historyFileURL, options: .atomic)
+        } catch {
+            print("Failed to save clipboard history: \(error)")
+        }
     }
 
-//    func setTarget(_ code: String) {
-//        targetCode = code
-//        Task {
-//            await translator.configure(target: Locale.Language(identifier: code))
-//        }
-//    }
+    private func loadHistory() {
+        guard FileManager.default.fileExists(atPath: historyFileURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: historyFileURL)
+            let loaded = try JSONDecoder().decode([TransformedText].self, from: data)
+            history = Array(loaded.prefix(CAPACITY))
+        } catch {
+            print("Failed to load clipboard history: \(error)")
+        }
+    }
 }

@@ -6,7 +6,6 @@
 //
 
 import Carbon.HIToolbox
-import Cocoa
 
 @MainActor
 final class HotKeyCenter {
@@ -20,19 +19,14 @@ final class HotKeyCenter {
 
     func register(keyCode: UInt32, modifiers: UInt32, handler: @escaping () -> Void) {
         unregister()
-
         callback = handler
-
-        let signature: OSType = 0x4254_524C // 'BTRL'
+        let signature: OSType = 0x4254_524C
         let hotKeyID = EventHotKeyID(signature: signature, id: 1)
         let target = GetEventDispatcherTarget()
-
         let status = RegisterEventHotKey(keyCode, modifiers, hotKeyID, target, 0, &hotKeyRef)
         guard status == noErr else {
-            NSLog("Failed to register hot key: \(status)")
             return
         }
-
         var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         let result = InstallEventHandler(target, { (_: EventHandlerCallRef?, event: EventRef?, userData: UnsafeMutableRawPointer?) -> OSStatus in
             guard let userData, let event else {
@@ -52,7 +46,6 @@ final class HotKeyCenter {
             }
             return noErr
         }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
-
         if result != noErr {
             NSLog("Failed to install hot key handler: \(result)")
         }
@@ -74,8 +67,6 @@ final class HotKeyCenter {
         guard let callback else {
             return
         }
-        DispatchQueue.main.async {
-            callback()
-        }
+        callback()
     }
 }

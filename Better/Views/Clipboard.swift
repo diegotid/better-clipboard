@@ -49,7 +49,7 @@ struct Clipboard: View {
                                 }
                             }
                             .padding(8)
-                            .background(.quaternary.opacity(0.3))
+                            .background(.windowBackground)
                             .cornerRadius(8)
                         }
                     }
@@ -65,7 +65,13 @@ struct Clipboard: View {
             }
         }
         .padding(12)
-        .frame(width: 360)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(NSColor.windowBackgroundColor).opacity(0.9))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(8)
     }
     
     private func displayName(for language: Locale.Language) -> String {

@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct TransformedText: Identifiable, Hashable {
+struct TransformedText: Identifiable, Codable, Hashable {
     let id = UUID()
     let original: String
     let variants: [Variant: String]
