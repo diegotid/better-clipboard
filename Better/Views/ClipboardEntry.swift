@@ -38,10 +38,6 @@ struct ClipboardEntry: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            Rectangle()
-                .fill(Color(NSColor.windowBackgroundColor).opacity(isFrontMost ? 0.96 : 0.85))
-        )
     }
 
     private var displayText: String {

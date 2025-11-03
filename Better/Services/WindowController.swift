@@ -130,12 +130,48 @@ final class WindowController {
         window.contentViewController = hostingController
         window.level = NSWindow.Level.floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        if let contentView = window.contentView {
-            contentView.wantsLayer = true
-            contentView.layer?.cornerRadius = 24
-            contentView.layer?.masksToBounds = true
-        }
+        let container = NSView(frame: NSRect(origin: .zero, size: NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)))
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 24
+        container.layer?.masksToBounds = true
+        let blurView = makeBlurView(container: container)
+        let tintView = makeTintView(container: container)
+        let hostingView = makeHostingView(container: container, hostingController: hostingController)
+        container.addSubview(blurView)
+        container.addSubview(tintView)
+        container.addSubview(hostingView)
+        window.contentView = container
         return window
+    }
+
+    private func makeBlurView(container: NSView) -> NSVisualEffectView {
+        let view = NSVisualEffectView(frame: container.bounds)
+        view.autoresizingMask = [.width, .height]
+        view.blendingMode = .behindWindow
+        view.material = .fullScreenUI
+        view.state = .active
+        view.isEmphasized = true
+        return view
+    }
+
+    private func makeTintView(container: NSView) -> NSView {
+        let view = NSView(frame: container.bounds)
+        view.autoresizingMask = [.width, .height]
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: 0.12).cgColor
+        view.identifier = NSUserInterfaceItemIdentifier("tint")
+        return view
+    }
+
+    private func makeHostingView(container: NSView, hostingController: NSHostingController<ClipboardEntry>) -> NSView {
+        let view = hostingController.view
+        view.frame = container.bounds
+        view.autoresizingMask = [.width, .height]
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        view.layer?.cornerRadius = 24
+        view.layer?.masksToBounds = true
+        return view
     }
 
     private func layoutWindows(animated: Bool) {
@@ -180,10 +216,13 @@ final class WindowController {
                 y: centerPoint.y - windowSize.height / 2 + offsetY
             )
             let frame = NSRect(origin: origin, size: windowSize)
-            window.contentMinSize = NSSize.zero
-            window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            window.contentMinSize = windowSize
+            window.contentMaxSize = windowSize
             if let hosting = window.contentViewController as? NSHostingController<ClipboardEntry> {
                 hosting.rootView = ClipboardEntry(entry: entry, isFrontMost: isFront)
+            }
+            if let tintView = window.contentView?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("tint") }) {
+                tintView.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: isFront ? 0.08 : 0.22).cgColor
             }
             updates.append((window, frame, opacity))
         }
