@@ -18,16 +18,6 @@ private let OFFSET_DECAY: CGFloat = 0.6
 private let OPACITY_STEP: CGFloat = 0.2
 private let SCALE_STEP: CGFloat = 0.1
 
-final class EscapeClosableWindow: NSWindow {
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == ESCAPE_KEY_CODE {
-            self.orderOut(nil)
-        } else {
-            super.keyDown(with: event)
-        }
-    }
-}
-
 @MainActor
 final class WindowController {
     private let statusItem: NSStatusItem
@@ -129,7 +119,7 @@ final class WindowController {
         let hostingController = NSHostingController(
             rootView: ClipboardEntry(entry: entry, isFrontMost: false)
         )
-        let window = EscapeClosableWindow(
+        let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)),
             styleMask: [.borderless],
             backing: .buffered,
@@ -293,6 +283,9 @@ final class WindowController {
                 return nil
             case UInt16(kVK_UpArrow):
                 self.rotateWheel(direction: .newer)
+                return nil
+            case UInt16(ESCAPE_KEY_CODE):
+                self.closeWindows()
                 return nil
             default:
                 return event
