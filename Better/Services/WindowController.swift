@@ -130,6 +130,11 @@ final class WindowController {
         window.contentViewController = hostingController
         window.level = NSWindow.Level.floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        if let contentView = window.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 24
+            contentView.layer?.masksToBounds = true
+        }
         return window
     }
 
@@ -175,8 +180,8 @@ final class WindowController {
                 y: centerPoint.y - windowSize.height / 2 + offsetY
             )
             let frame = NSRect(origin: origin, size: windowSize)
-            window.contentMinSize = windowSize
-            window.contentMaxSize = windowSize
+            window.contentMinSize = NSSize.zero
+            window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
             if let hosting = window.contentViewController as? NSHostingController<ClipboardEntry> {
                 hosting.rootView = ClipboardEntry(entry: entry, isFrontMost: isFront)
             }

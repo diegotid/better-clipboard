@@ -39,16 +39,8 @@ struct ClipboardEntry: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            Rectangle()
                 .fill(Color(NSColor.windowBackgroundColor).opacity(isFrontMost ? 0.96 : 0.85))
-                .shadow(color: .black.opacity(isFrontMost ? 0.25 : 0.15),
-                        radius: isFrontMost ? 18 : 12,
-                        x: 0,
-                        y: isFrontMost ? 12 : 8)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(.white.opacity(isFrontMost ? 0.25 : 0.15), lineWidth: 1)
         )
     }
 
