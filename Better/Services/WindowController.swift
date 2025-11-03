@@ -13,10 +13,10 @@ import QuartzCore
 private let ESCAPE_KEY_CODE: Int = 53
 private let WINDOW_WIDTH: CGFloat = 600
 private let WINDOW_HEIGHT: CGFloat = 500
-private let OFFSET_STEP: Int = 130
+private let OFFSET_STEP: Int = 110
 private let OFFSET_DECAY: CGFloat = 0.6
+private let OPACITY_STEP: CGFloat = 0.2
 private let SCALE_STEP: CGFloat = 0.1
-private let OPACITY_STEP: CGFloat = 0.3
 
 final class EscapeClosableWindow: NSWindow {
     override func keyDown(with event: NSEvent) {
@@ -209,7 +209,7 @@ final class WindowController {
         var updates: [(window: NSWindow, frame: NSRect, alpha: CGFloat)] = []
         func recordUpdate(window: NSWindow, entry: TransformedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
             let scale = max(1.0 - CGFloat(depth) * SCALE_STEP, 0.3)
-            let opacity = 1.0 - CGFloat(depth) * OPACITY_STEP
+            let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * OPACITY_STEP
             let windowSize = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
             let origin = NSPoint(
                 x: centerPoint.x - windowSize.width / 2,
@@ -258,15 +258,25 @@ final class WindowController {
                 update.window.alphaValue = update.alpha
             }
         }
-        for index in windows.indices {
+        var stackingOrder: [NSWindow] = []
+        if let frontWindow = windows.first {
+            stackingOrder.append(frontWindow)
+        }
+        for item in belowStack {
+            stackingOrder.append(item.window)
+        }
+        for item in aboveStack {
+            stackingOrder.append(item.window)
+        }
+        for (index, win) in stackingOrder.enumerated() {
             if index == 0 {
-                windows[index].makeKeyAndOrderFront(nil)
+                win.makeKeyAndOrderFront(nil)
             } else {
-                windows[index].order(.below, relativeTo: windows[index - 1].windowNumber)
+                win.order(.below, relativeTo: stackingOrder[index - 1].windowNumber)
             }
         }
     }
-
+    
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -288,7 +298,10 @@ final class WindowController {
     }
 
     private func rotateWheel(direction: RotationDirection) {
-        guard windows.count > 1, windows.count == entries.count else { return }
+        guard windows.count > 1,
+              windows.count == entries.count else {
+            return
+        }
         guard let frontEntry = entries.first,
               let frontIndex = entryIndexLookup[frontEntry.id] else {
             return
