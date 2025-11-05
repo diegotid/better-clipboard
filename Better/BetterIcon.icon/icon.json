@@ -10,14 +10,47 @@
             },
             {
               "idiom" : "square",
-              "value" : "metal.png"
+              "value" : "clip.png"
             }
           ],
-          "name" : "metal"
+          "name" : "clip",
+          "position-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1,
+                "translation-in-points" : [
+                  0,
+                  0
+                ]
+              }
+            }
+          ]
         },
         {
-          "image-name" : "sparkles.png",
-          "name" : "sparkles"
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "sparkles.png"
+            },
+            {
+              "idiom" : "square",
+              "value" : "content.png"
+            }
+          ],
+          "name" : "content",
+          "position-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1,
+                "translation-in-points" : [
+                  0,
+                  0
+                ]
+              }
+            }
+          ]
         },
         {
           "glass" : false,
@@ -27,10 +60,22 @@
             },
             {
               "idiom" : "square",
-              "value" : "paper.png"
+              "value" : "sheet.png"
             }
           ],
-          "name" : "paper"
+          "name" : "sheet",
+          "position-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1,
+                "translation-in-points" : [
+                  0,
+                  0
+                ]
+              }
+            }
+          ]
         },
         {
           "glass" : false,
