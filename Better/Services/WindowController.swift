@@ -32,6 +32,7 @@ final class WindowController {
     private var scrollMonitor: Any?
     private var resignActiveObserver: Any?
     private var lastScrollEventTime: TimeInterval = 0
+    private var aboutWindow: NSWindow?
     
     private var showingWindows: Bool {
         windows.contains(where: { $0.isVisible })
@@ -44,6 +45,37 @@ final class WindowController {
             keyEquivalent: "v"
         )
         item.keyEquivalentModifierMask = [.command, .shift]
+        item.target = self
+        return item
+    }()
+    
+    private lazy var clearItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Clear Clipboard History",
+            action: #selector(clearClipboardHistoryAction(_:)),
+            keyEquivalent: "\u{8}"
+        )
+        item.keyEquivalentModifierMask = [.command]
+        item.target = self
+        return item
+    }()
+
+    private lazy var aboutMenuItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "About Better...",
+            action: #selector(showAboutWindow(_:)),
+            keyEquivalent: ""
+        )
+        item.target = self
+        return item
+    }()
+    
+    private lazy var quitItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Quit Better",
+            action: #selector(quitAction(_:)),
+            keyEquivalent: "q"
+        )
         item.target = self
         return item
     }()
@@ -76,6 +108,11 @@ final class WindowController {
         }
         if let monitor = scrollMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+        if let aboutWin = aboutWindow {
+            Task { @MainActor in
+                aboutWin.close()
+            }
         }
     }
 
@@ -136,20 +173,11 @@ final class WindowController {
         button.image?.isTemplate = true
         let menu = NSMenu()
         menu.addItem(toggleMenuItem)
-        let clearItem = NSMenuItem(
-            title: "Clear Clipboard History",
-            action: #selector(clearClipboardHistoryAction(_:)),
-            keyEquivalent: "\u{8}"
-        )
-        clearItem.keyEquivalentModifierMask = [.command]
-        clearItem.target = self
         menu.addItem(clearItem)
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(
-            withTitle: "Quit Better",
-            action: #selector(quitAction(_:)),
-            keyEquivalent: "q"
-        ).target = self
+        menu.addItem(aboutMenuItem)
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(quitItem)
         statusItem.menu = menu
         updateToggleMenuTitle()
     }
@@ -183,6 +211,48 @@ final class WindowController {
     @objc
     private func quitAction(_ sender: Any?) {
         NSApp.terminate(nil)
+    }
+    
+    @objc
+    private func showAboutWindow(_ sender: Any?) {
+        if let aboutWin = aboutWindow {
+            aboutWin.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let hostingController = NSHostingController(rootView: About())
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: 0, y: 0,
+                width: Frame.aboutWindowWidth,
+                height: Frame.aboutWindowHeight
+            ),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.center()
+        window.title = "About Better"
+        window.isReleasedWhenClosed = false
+        window.contentViewController = hostingController
+        window.level = .floating
+        window.styleMask.insert(.utilityWindow)
+        window.standardWindowButton(.zoomButton)?.isEnabled = false
+        window.standardWindowButton(.miniaturizeButton)?.isEnabled = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(aboutWindowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: window
+        )
+        aboutWindow = window
+    }
+    
+    @objc
+    private func aboutWindowWillClose(_ notification: Notification) {
+        aboutWindow = nil
     }
 
     private func registerHotKey() {
@@ -469,7 +539,9 @@ final class WindowController {
                 overlay.animator().alphaValue = 0
             }, completionHandler: {
                 overlay.removeFromSuperview()
-                self?.closeWindows()
+                Task { @MainActor in
+                    self?.closeWindows()
+                }
             })
         }
     }
