@@ -22,6 +22,21 @@ private let SCALE_STEP: CGFloat = 0.1
 @MainActor
 final class WindowController {
     private let statusItem: NSStatusItem
+    private let clipboard: ClipboardController
+    
+    private var windows: [NSWindow] = []
+    private var entries: [TransformedText] = []
+    private var baseHistory: [TransformedText] = []
+    private var entryIndexLookup: [UUID: Int] = [:]
+    private var keyMonitor: Any?
+    private var scrollMonitor: Any?
+    private var resignActiveObserver: Any?
+    private var lastScrollEventTime: TimeInterval = 0
+    
+    private var showingWindows: Bool {
+        windows.contains(where: { $0.isVisible })
+    }
+    
     private lazy var toggleMenuItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "",
@@ -32,19 +47,6 @@ final class WindowController {
         item.target = self
         return item
     }()
-    private var windows: [NSWindow] = []
-    private var entries: [TransformedText] = []
-    private var baseHistory: [TransformedText] = []
-    private var entryIndexLookup: [UUID: Int] = [:]
-    private var keyMonitor: Any?
-    private var scrollMonitor: Any?
-    private let clipboard: ClipboardController
-    private var resignActiveObserver: Any?
-    private var lastScrollEventTime: TimeInterval = 0
-    
-    private var showingWindows: Bool {
-        windows.contains(where: { $0.isVisible })
-    }
 
     init(clipboard: ClipboardController) {
         self.clipboard = clipboard
@@ -368,10 +370,7 @@ final class WindowController {
                 self.closeWindows()
                 return nil
             case RETURN_KEY_CODE:
-                if let firstEntry = self.entries.first {
-                    self.copyToPasteboard(firstEntry.original)
-                }
-                self.closeWindows()
+                self.handleCopyFrontEntry()
                 return nil
             default:
                 return event
@@ -406,6 +405,73 @@ final class WindowController {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
+    }
+
+    private func handleCopyFrontEntry() {
+        guard let frontWindow = windows.first,
+              let frontEntry = entries.first else {
+            closeWindows()
+            return
+        }
+        copyToPasteboard(frontEntry.original)
+        if windows.count > 1 {
+            for window in windows.dropFirst() {
+                window.orderOut(nil)
+                window.close()
+            }
+            windows = [frontWindow]
+            entries = [frontEntry]
+        }
+        layoutWindows(animated: false)
+        presentCopyOverlay(on: frontWindow)
+    }
+
+    private func presentCopyOverlay(on window: NSWindow) {
+        guard let container = window.contentView else {
+            closeWindows()
+            return
+        }
+        let overlaySize = NSSize(width: 220, height: 90)
+        let overlay = NSVisualEffectView(frame: NSRect(origin: .zero, size: overlaySize))
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        overlay.blendingMode = .withinWindow
+        overlay.material = .popover
+        overlay.state = .active
+        overlay.isEmphasized = true
+        overlay.wantsLayer = true
+        overlay.layer?.cornerRadius = 22
+        overlay.layer?.masksToBounds = true
+        overlay.alphaValue = 0
+        let label = NSTextField(labelWithString: "Copied!")
+        label.font = NSFont.systemFont(ofSize: 22, weight: .semibold)
+        label.alignment = .center
+        label.textColor = .labelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        overlay.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: overlay.centerYAnchor)
+        ])
+        container.addSubview(overlay)
+        NSLayoutConstraint.activate([
+            overlay.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            overlay.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            overlay.widthAnchor.constraint(equalToConstant: overlaySize.width),
+            overlay.heightAnchor.constraint(equalToConstant: overlaySize.height)
+        ])
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.15
+            overlay.animator().alphaValue = 1
+        })
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                overlay.animator().alphaValue = 0
+            }, completionHandler: {
+                overlay.removeFromSuperview()
+                self?.closeWindows()
+            })
+        }
     }
 
     private func rotateWheel(direction: RotationDirection) {
