@@ -33,6 +33,7 @@ final class WindowController {
     private var resignActiveObserver: Any?
     private var lastScrollEventTime: TimeInterval = 0
     private var aboutWindow: NSWindow?
+    private var lastActiveApp: NSRunningApplication?
     
     private var showingWindows: Bool {
         windows.contains(where: { $0.isVisible })
@@ -131,6 +132,7 @@ final class WindowController {
     }
 
     private func showWindows() {
+        lastActiveApp = NSWorkspace.shared.frontmostApplication
         closeWindows()
         let history = clipboard.history
         guard !history.isEmpty else {
@@ -440,7 +442,7 @@ final class WindowController {
                 self.closeWindows()
                 return nil
             case RETURN_KEY_CODE:
-                self.handleCopyFrontEntry()
+                self.handlePasteFrontEntry()
                 return nil
             default:
                 return event
@@ -471,19 +473,33 @@ final class WindowController {
         }
     }
 
-    private func copyToPasteboard(_ string: String) {
+    private func paste(_ string: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
+        if let lastApp = lastActiveApp {
+            _ = lastApp.activate(options: [.activateAllWindows])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                let src = CGEventSource(stateID: .combinedSessionState)
+                let keyVDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
+                let keyVUp = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
+                keyVDown?.flags = .maskCommand
+                keyVUp?.flags = .maskCommand
+                let loc = CGEventTapLocation.cghidEventTap
+                keyVDown?.post(tap: loc)
+                keyVUp?.post(tap: loc)
+            }
+        }
+        lastActiveApp = nil
     }
 
-    private func handleCopyFrontEntry() {
+    private func handlePasteFrontEntry() {
         guard let frontWindow = windows.first,
               let frontEntry = entries.first else {
             closeWindows()
             return
         }
-        copyToPasteboard(frontEntry.original)
+        paste(frontEntry.original)
         if windows.count > 1 {
             for window in windows.dropFirst() {
                 window.orderOut(nil)
