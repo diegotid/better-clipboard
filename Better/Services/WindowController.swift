@@ -23,8 +23,7 @@ private let SCALE_STEP: CGFloat = 0.1
 final class WindowController {
     private let statusItem: NSStatusItem
     private let clipboard: ClipboardController
-    
-    private var windows: [NSWindow] = []
+    private var windows: [(window: NSWindow, host: NSHostingController<ClipboardEntry>)] = []
     private var entries: [TransformedText] = []
     private var baseHistory: [TransformedText] = []
     private var entryIndexLookup: [UUID: Int] = [:]
@@ -34,11 +33,11 @@ final class WindowController {
     private var lastScrollEventTime: TimeInterval = 0
     private var aboutWindow: NSWindow?
     private var lastActiveApp: NSRunningApplication?
-    
+
     private var showingWindows: Bool {
-        windows.contains(where: { $0.isVisible })
+        windows.contains(where: { $0.window.isVisible })
     }
-    
+
     private lazy var toggleMenuItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "",
@@ -49,7 +48,7 @@ final class WindowController {
         item.target = self
         return item
     }()
-    
+
     private lazy var clearItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Clear Clipboard History",
@@ -70,7 +69,7 @@ final class WindowController {
         item.target = self
         return item
     }()
-    
+
     private lazy var quitItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Quit Better",
@@ -121,7 +120,7 @@ final class WindowController {
         case older
         case newer
     }
-    
+
     @objc
     private func toggleWindow(_ sender: Any?) {
         if showingWindows {
@@ -149,7 +148,7 @@ final class WindowController {
     }
 
     private func closeWindows() {
-        windows.forEach { window in
+        for (window, _) in windows {
             window.orderOut(nil)
             window.close()
         }
@@ -214,7 +213,7 @@ final class WindowController {
     private func quitAction(_ sender: Any?) {
         NSApp.terminate(nil)
     }
-    
+
     @objc
     private func showAboutWindow(_ sender: Any?) {
         if let aboutWin = aboutWindow {
@@ -251,7 +250,7 @@ final class WindowController {
         )
         aboutWindow = window
     }
-    
+
     @objc
     private func aboutWindowWillClose(_ notification: Notification) {
         aboutWindow = nil
@@ -262,7 +261,7 @@ final class WindowController {
         let modifiers = UInt32(cmdKey | shiftKey)
         HotKeyCenter.shared.register(keyCode: keyCode, modifiers: modifiers) { [weak self] in
             guard let self else { return }
-            if self.windows.contains(where: { $0.isVisible }) {
+            if self.windows.contains(where: { $0.window.isVisible }) {
                 self.closeWindows()
             } else {
                 self.showWindows()
@@ -270,7 +269,7 @@ final class WindowController {
         }
     }
 
-    private func createWindow(for entry: TransformedText) -> NSWindow {
+    private func createWindow(for entry: TransformedText) -> (NSWindow, NSHostingController<ClipboardEntry>) {
         let hostingController = NSHostingController(
             rootView: ClipboardEntry(entry: entry, isFrontMost: false)
         )
@@ -298,7 +297,7 @@ final class WindowController {
         container.addSubview(blurView)
         container.addSubview(hostingView)
         window.contentView = container
-        return window
+        return (window, hostingController)
     }
 
     private func makeBlurView(container: NSView) -> NSVisualEffectView {
@@ -336,26 +335,26 @@ final class WindowController {
         let baseSize = NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)
         let screenFrame = screen.visibleFrame
         let centerPoint = NSPoint(x: screenFrame.midX, y: screenFrame.midY)
-        var belowStack: [(window: NSWindow, entry: TransformedText, baseIndex: Int)] = []
-        var aboveStack: [(window: NSWindow, entry: TransformedText, baseIndex: Int)] = []
+        var belowStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: TransformedText, baseIndex: Int)] = []
+        var aboveStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: TransformedText, baseIndex: Int)] = []
         if windows.count > 1 {
             for idx in 1..<windows.count {
-                let window = windows[idx]
+                let (window, host) = windows[idx]
                 let entry = entries[idx]
                 guard let baseIndex = entryIndexLookup[entry.id] else {
                     continue
                 }
                 if baseIndex > frontIndex {
-                    belowStack.append((window, entry, baseIndex))
+                    belowStack.append((window, host, entry, baseIndex))
                 } else if baseIndex < frontIndex {
-                    aboveStack.append((window, entry, baseIndex))
+                    aboveStack.append((window, host, entry, baseIndex))
                 }
             }
         }
         belowStack.sort { $0.baseIndex < $1.baseIndex }
         aboveStack.sort { $0.baseIndex > $1.baseIndex }
-        var updates: [(window: NSWindow, frame: NSRect, alpha: CGFloat)] = []
-        func recordUpdate(window: NSWindow, entry: TransformedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
+        var updates: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, frame: NSRect, alpha: CGFloat, entry: TransformedText, isFront: Bool)] = []
+        func recordUpdate(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: TransformedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
             let scale = max(1.0 - CGFloat(depth) * SCALE_STEP, 0.3)
             let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * OPACITY_STEP
             let windowSize = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
@@ -366,28 +365,26 @@ final class WindowController {
             let frame = NSRect(origin: origin, size: windowSize)
             window.contentMinSize = windowSize
             window.contentMaxSize = windowSize
-            if let hosting = window.contentViewController as? NSHostingController<ClipboardEntry> {
-                hosting.rootView = ClipboardEntry(entry: entry, isFrontMost: isFront)
-            }
+            host.rootView = ClipboardEntry(entry: entry, isFrontMost: isFront)
             if let tintView = window.contentView?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("tint") }) {
                 tintView.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: isFront ? 0.08 : 0.22).cgColor
             }
-            updates.append((window, frame, opacity))
+            updates.append((window, host, frame, opacity, entry, isFront))
         }
-        if let frontWindow = windows.first {
-            recordUpdate(window: frontWindow, entry: frontEntry, depth: 0, offsetY: 0, isFront: true)
+        if let (frontWindow, frontHost) = windows.first {
+            recordUpdate(window: frontWindow, host: frontHost, entry: frontEntry, depth: 0, offsetY: 0, isFront: true)
         }
         var belowOffset: CGFloat = 0
         for (position, element) in belowStack.enumerated() {
             let multiplier = position == 0 ? 1.0 : pow(OFFSET_DECAY, CGFloat(position))
             belowOffset -= CGFloat(OFFSET_STEP) * multiplier
-            recordUpdate(window: element.window, entry: element.entry, depth: position + 1, offsetY: belowOffset, isFront: false)
+            recordUpdate(window: element.window, host: element.host, entry: element.entry, depth: position + 1, offsetY: belowOffset, isFront: false)
         }
         var aboveOffset: CGFloat = 0
         for (position, element) in aboveStack.enumerated() {
             let multiplier = position == 0 ? 1.0 : pow(OFFSET_DECAY, CGFloat(position))
             aboveOffset += CGFloat(OFFSET_STEP) * multiplier
-            recordUpdate(window: element.window, entry: element.entry, depth: position + 1, offsetY: aboveOffset, isFront: false)
+            recordUpdate(window: element.window, host: element.host, entry: element.entry, depth: position + 1, offsetY: aboveOffset, isFront: false)
         }
         if animated {
             NSAnimationContext.runAnimationGroup { context in
@@ -407,7 +404,7 @@ final class WindowController {
             }
         }
         var stackingOrder: [NSWindow] = []
-        if let frontWindow = windows.first {
+        if let (frontWindow, _) = windows.first {
             stackingOrder.append(frontWindow)
         }
         for item in belowStack {
@@ -424,7 +421,7 @@ final class WindowController {
             }
         }
     }
-    
+
     private func installEventMonitors() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -494,19 +491,24 @@ final class WindowController {
     }
 
     private func handlePasteFrontEntry() {
-        guard let frontWindow = windows.first,
+        guard let (frontWindow, _) = windows.first,
               let frontEntry = entries.first else {
             closeWindows()
             return
         }
         paste(frontEntry.original)
         if windows.count > 1 {
-            for window in windows.dropFirst() {
+            for (window, _) in windows.dropFirst() {
                 window.orderOut(nil)
                 window.close()
             }
-            windows = [frontWindow]
-            entries = [frontEntry]
+            if let first = windows.first {
+                windows = [first]
+                entries = [frontEntry]
+            } else {
+                windows = []
+                entries = []
+            }
         }
         layoutWindows(animated: false)
         presentCopyOverlay(on: frontWindow)
@@ -576,17 +578,17 @@ final class WindowController {
             if frontIndex >= baseHistory.count - 1 {
                 return
             }
-            let window = windows.removeFirst()
+            let winTuple = windows.removeFirst()
             let entry = entries.removeFirst()
-            windows.append(window)
+            windows.append(winTuple)
             entries.append(entry)
         case .newer:
             if frontIndex <= 0 {
                 return
             }
-            let window = windows.removeLast()
+            let winTuple = windows.removeLast()
             let entry = entries.removeLast()
-            windows.insert(window, at: 0)
+            windows.insert(winTuple, at: 0)
             entries.insert(entry, at: 0)
         }
         layoutWindows(animated: true)
