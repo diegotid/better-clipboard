@@ -1,7 +1,70 @@
 {
-  "fill" : "automatic",
+  "fill" : {
+    "linear-gradient" : [
+      "display-p3:0.33261,0.66270,1.00000,1.00000",
+      "display-p3:0.23990,0.47709,0.74649,1.00000"
+    ]
+  },
   "groups" : [
     {
+      "layers" : [
+        {
+          "image-name" : "clip-full.png",
+          "name" : "clip-full",
+          "position-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1,
+                "translation-in-points" : [
+                  0,
+                  24
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "glass" : false,
+          "image-name" : "sparkles-full.png",
+          "name" : "sparkles-full",
+          "position-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1,
+                "translation-in-points" : [
+                  0,
+                  8
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "blend-mode" : "plus-lighter",
+          "glass" : false,
+          "image-name" : "content-full.png",
+          "name" : "content-full"
+        },
+        {
+          "glass" : true,
+          "image-name" : "sheet-full.png",
+          "name" : "sheet-full"
+        }
+      ],
+      "name" : "Full",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "hidden" : true,
       "layers" : [
         {
           "image-name-specializations" : [
@@ -28,6 +91,21 @@
           ]
         },
         {
+          "blend-mode" : "normal",
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "sparkles-full.png"
+            },
+            {
+              "idiom" : "square",
+              "value" : "sparkles.png"
+            }
+          ],
+          "name" : "sparkles"
+        },
+        {
+          "blend-mode" : "plus-lighter",
           "glass" : false,
           "image-name-specializations" : [
             {
@@ -78,7 +156,13 @@
           ]
         },
         {
-          "glass" : false,
+          "glass" : true,
+          "hidden-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : true
+            }
+          ],
           "image-name-specializations" : [
             {
               "value" : "board.png"
@@ -91,6 +175,7 @@
           "name" : "board"
         }
       ],
+      "name" : "Normal",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
