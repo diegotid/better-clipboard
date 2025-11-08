@@ -21,20 +21,36 @@ struct ClipboardEntry: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if isFrontMost {
+                Spacer()
                 HStack(spacing: 12) {
                     Button("Copy translation") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(displayText, forType: .string)
                     }
-                    Button("Copy original") {
+                    Button(action: {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(entry.original, forType: .string)
+                    }) {
+                        HStack {
+                            Image(systemName: "command")
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(.ultraThickMaterial)
+                                )
+                            Text("Copy original")
+                                .padding(.trailing, 8)
+                        }
+                        .padding(3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(.secondary.opacity(0.6))
+                        )
                     }
                 }
                 .buttonStyle(.borderless)
                 .font(.caption)
             }
-            Spacer()
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

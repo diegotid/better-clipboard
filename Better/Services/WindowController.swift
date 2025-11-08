@@ -12,8 +12,8 @@ import QuartzCore
 
 private let ESCAPE_KEY_CODE: Int = 53
 private let RETURN_KEY_CODE: UInt16 = 36
-private let WINDOW_WIDTH: CGFloat = 600
-private let WINDOW_HEIGHT: CGFloat = 500
+private let WINDOW_WIDTH: CGFloat = 500
+private let WINDOW_HEIGHT: CGFloat = 350
 private let OFFSET_STEP: Int = 110
 private let OFFSET_DECAY: CGFloat = 0.6
 private let OPACITY_STEP: CGFloat = 0.2
