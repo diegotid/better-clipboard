@@ -2,13 +2,8 @@
   "colors" : [
     {
       "color" : {
-        "color-space" : "display-p3",
-        "components" : {
-          "alpha" : "1.000",
-          "blue" : "0.431",
-          "green" : "0.627",
-          "red" : "0.772"
-        }
+        "platform" : "watchos",
+        "reference" : "systemTealColor"
       },
       "idiom" : "universal"
     }

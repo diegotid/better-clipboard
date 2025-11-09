@@ -1,12 +1,13 @@
 {
   "fill" : {
     "linear-gradient" : [
-      "display-p3:0.33261,0.66270,1.00000,1.00000",
-      "display-p3:0.23990,0.47709,0.74649,1.00000"
+      "display-p3:0.50292,0.76000,0.85109,1.00000",
+      "display-p3:0.27453,0.57805,0.55420,1.00000"
     ]
   },
   "groups" : [
     {
+      "hidden" : true,
       "layers" : [
         {
           "image-name" : "clip-full.png",
@@ -64,7 +65,8 @@
       }
     },
     {
-      "hidden" : true,
+      "blur-material" : null,
+      "hidden" : false,
       "layers" : [
         {
           "image-name-specializations" : [
@@ -105,7 +107,15 @@
           "name" : "sparkles"
         },
         {
-          "blend-mode" : "plus-lighter",
+          "blend-mode-specializations" : [
+            {
+              "value" : "plus-lighter"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "multiply"
+            }
+          ],
           "glass" : false,
           "image-name-specializations" : [
             {
