@@ -24,8 +24,8 @@ final class WindowController {
     private let statusItem: NSStatusItem
     private let clipboard: ClipboardController
     private var windows: [(window: NSWindow, host: NSHostingController<ClipboardEntry>)] = []
-    private var entries: [TransformedText] = []
-    private var baseHistory: [TransformedText] = []
+    private var entries: [CopiedText] = []
+    private var baseHistory: [CopiedText] = []
     private var entryIndexLookup: [UUID: Int] = [:]
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
@@ -273,7 +273,7 @@ final class WindowController {
         }
     }
 
-    private func createWindow(for entry: TransformedText) -> (NSWindow, NSHostingController<ClipboardEntry>) {
+    private func createWindow(for entry: CopiedText) -> (NSWindow, NSHostingController<ClipboardEntry>) {
         let hostingController = NSHostingController(
             rootView: ClipboardEntry(entry: entry, isFrontMost: false)
         )
@@ -339,8 +339,8 @@ final class WindowController {
         let baseSize = NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)
         let screenFrame = screen.visibleFrame
         let centerPoint = NSPoint(x: screenFrame.midX, y: screenFrame.midY)
-        var belowStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: TransformedText, baseIndex: Int)] = []
-        var aboveStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: TransformedText, baseIndex: Int)] = []
+        var belowStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, baseIndex: Int)] = []
+        var aboveStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, baseIndex: Int)] = []
         if windows.count > 1 {
             for idx in 1..<windows.count {
                 let (window, host) = windows[idx]
@@ -357,8 +357,8 @@ final class WindowController {
         }
         belowStack.sort { $0.baseIndex < $1.baseIndex }
         aboveStack.sort { $0.baseIndex > $1.baseIndex }
-        var updates: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, frame: NSRect, alpha: CGFloat, entry: TransformedText, isFront: Bool)] = []
-        func recordUpdate(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: TransformedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
+        var updates: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, frame: NSRect, alpha: CGFloat, entry: CopiedText, isFront: Bool)] = []
+        func recordUpdate(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
             let scale = max(1.0 - CGFloat(depth) * SCALE_STEP, 0.3)
             let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * OPACITY_STEP
             let windowSize = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)

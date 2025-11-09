@@ -10,7 +10,7 @@ import Foundation
 
 @MainActor
 final class ClipboardController: ObservableObject {
-    @Published var history: [TransformedText] = [] {
+    @Published var history: [CopiedText] = [] {
         didSet {
             saveHistory()
         }
@@ -42,7 +42,7 @@ final class ClipboardController: ObservableObject {
                     return
                 }
                 await MainActor.run {
-                    let entry = TransformedText(original: trimmed, date: Date())
+                    let entry = CopiedText(original: trimmed, date: Date())
                     let updated = [entry] + self.history
                     self.history = Array(updated.prefix(self.CAPACITY))
                 }
@@ -63,7 +63,7 @@ final class ClipboardController: ObservableObject {
         guard FileManager.default.fileExists(atPath: historyFileURL.path) else { return }
         do {
             let data = try Data(contentsOf: historyFileURL)
-            let loaded = try JSONDecoder().decode([TransformedText].self, from: data)
+            let loaded = try JSONDecoder().decode([CopiedText].self, from: data)
             history = Array(loaded.prefix(CAPACITY))
         } catch {
             print("Failed to load clipboard history: \(error)")

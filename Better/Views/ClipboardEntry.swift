@@ -8,17 +8,18 @@
 import SwiftUI
 
 struct ClipboardEntry: View {
-    let entry: TransformedText
+    let entry: CopiedText
     let isFrontMost: Bool
 
     @State private var editedText: String
-    @StateObject private var writingToolsController = WritingToolsController()
     @State private var showingWritingToolsHelp = false
+    
+    @StateObject private var writingToolsController = WritingToolsController()
 
-    init(entry: TransformedText, isFrontMost: Bool) {
+    init(entry: CopiedText, isFrontMost: Bool) {
         self.entry = entry
         self.isFrontMost = isFrontMost
-        _editedText = State(initialValue: entry.variants.first?.value ?? entry.original)
+        _editedText = State(initialValue: entry.original)
     }
 
     var body: some View {
