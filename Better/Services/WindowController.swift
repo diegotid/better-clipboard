@@ -46,7 +46,7 @@ final class WindowController {
         )
         item.keyEquivalentModifierMask = [.command, .shift]
         item.target = self
-        item.image = NSImage(systemSymbolName: "sparkles.rectangle.stack", accessibilityDescription: nil)
+        item.image = NSImage(systemSymbolName: "sparkles.rectangle.stack.fill", accessibilityDescription: nil)
         return item
     }()
 
@@ -173,7 +173,7 @@ final class WindowController {
         guard let button = statusItem.button else {
             return
         }
-        button.image = NSImage(systemSymbolName: "sparkles",
+        button.image = NSImage(systemSymbolName: "sparkles.rectangle.stack.fill",
                                accessibilityDescription: "Better")
         button.image?.isTemplate = true
         let menu = NSMenu()
