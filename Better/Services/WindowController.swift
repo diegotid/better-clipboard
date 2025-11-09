@@ -264,7 +264,9 @@ final class WindowController {
         let keyCode = UInt32(kVK_ANSI_V)
         let modifiers = UInt32(cmdKey | shiftKey)
         HotKeyCenter.shared.register(keyCode: keyCode, modifiers: modifiers) { [weak self] in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             if self.windows.contains(where: { $0.window.isVisible }) {
                 self.closeWindows()
             } else {
@@ -428,7 +430,9 @@ final class WindowController {
 
     private func installEventMonitors() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self else { return event }
+            guard let self else {
+                return event
+            }
             guard !self.windows.isEmpty else {
                 return event
             }
@@ -456,7 +460,9 @@ final class WindowController {
             }
         }
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self else { return event }
+            guard let self else {
+                return event
+            }
             guard !self.windows.isEmpty else {
                 return event
             }
@@ -481,7 +487,9 @@ final class WindowController {
     }
 
     private func triggerRewriteShortcut() {
-        guard let frontEntry = entries.first else { return }
+        guard let frontEntry = entries.first else {
+            return
+        }
         NotificationCenter.default.post(name: .rewriteFrontEntryRequested, object: frontEntry.id)
     }
 

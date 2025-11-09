@@ -61,7 +61,9 @@ final class ClipboardController: ObservableObject {
     }
 
     private func loadHistory() {
-        guard FileManager.default.fileExists(atPath: historyFileURL.path) else { return }
+        guard FileManager.default.fileExists(atPath: historyFileURL.path) else {
+            return
+        }
         do {
             let data = try Data(contentsOf: historyFileURL)
             let loaded = try JSONDecoder().decode([CopiedText].self, from: data)

@@ -21,15 +21,21 @@ struct ClipboardEntry: View {
         self.isFrontMost = isFrontMost
         _editedText = State(initialValue: entry.original)
     }
+    
+    let cornerRadius: CGFloat = 12
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            WritingToolsEditor(text: $editedText, controller: writingToolsController)
-                .frame(minHeight: 88)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(.quaternary)
-                )
+            ZStack(alignment: .topLeading) {
+                WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
+                WritingToolsEditor(text: $editedText, controller: writingToolsController)
+                    .frame(minHeight: 88)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(.quaternary)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             Text(entry.original)
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -57,7 +57,9 @@ final class WritingToolsController: ObservableObject {
     }
 
     func focusTextView() {
-        guard let tv = textView else { return }
+        guard let tv = textView else {
+            return
+        }
         tv.window?.makeFirstResponder(tv)
     }
 }

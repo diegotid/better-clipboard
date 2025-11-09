@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct WritingToolsEditor: NSViewRepresentable {
     @Binding var text: String
     @ObservedObject var controller: WritingToolsController
+    
+    let cornerRadius: CGFloat = 12
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -19,6 +22,18 @@ struct WritingToolsEditor: NSViewRepresentable {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
+        scroll.scrollerStyle = .overlay
+        scroll.wantsLayer = true
+        scroll.layer?.cornerRadius = cornerRadius
+        scroll.layer?.masksToBounds = true
+        if let verticalScroller = scroll.verticalScroller {
+            verticalScroller.wantsLayer = true
+            verticalScroller.layer?.backgroundColor = NSColor.clear.cgColor
+            verticalScroller.alphaValue = 1.0
+            verticalScroller.scrollerStyle = .overlay
+            verticalScroller.knobStyle = .default
+            verticalScroller.layer?.cornerRadius = cornerRadius
+        }
         let tv = ShortcutAwareTextView(frame: .zero)
         tv.commandRAction = { [weak controller] in
             controller?.showWritingToolsPanel()
@@ -41,6 +56,16 @@ struct WritingToolsEditor: NSViewRepresentable {
         if let tv = nsView.documentView as? NSTextView, tv.string != text {
             tv.string = text
         }
+        nsView.wantsLayer = true
+        nsView.layer?.cornerRadius = cornerRadius
+        nsView.layer?.masksToBounds = true
+        nsView.scrollerStyle = .overlay
+        if let verticalScroller = nsView.verticalScroller {
+            verticalScroller.scrollerStyle = .overlay
+            verticalScroller.wantsLayer = true
+            verticalScroller.layer?.backgroundColor = NSColor.clear.cgColor
+            verticalScroller.knobStyle = .default
+        }
         controller.textView = nsView.documentView as? NSTextView
     }
 
@@ -54,9 +79,17 @@ struct WritingToolsEditor: NSViewRepresentable {
         private let parent: WritingToolsEditor
         init(_ parent: WritingToolsEditor) { self.parent = parent }
         func textDidChange(_ notification: Notification) {
-            guard let tv = notification.object as? NSTextView else { return }
+            guard let tv = notification.object as? NSTextView else {
+                return
+            }
             parent.text = tv.string
         }
+    }
+
+    static func blurredBackground(cornerRadius: CGFloat = 12) -> some View {
+        VisualEffectBlur(material: .contentBackground)
+            .background(Color(NSColor.windowBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
@@ -78,7 +111,9 @@ private final class ShortcutAwareTextView: NSTextView {
     }
 
     private func handleCommandR(event: NSEvent) -> Bool {
-        guard event.type == .keyDown else { return false }
+        guard event.type == .keyDown else {
+            return false
+        }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard flags.contains(.command),
               event.charactersIgnoringModifiers?.lowercased() == "r" else {
@@ -86,5 +121,30 @@ private final class ShortcutAwareTextView: NSTextView {
         }
         commandRAction?()
         return true
+    }
+}
+
+struct VisualEffectBlur: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+
+    init(material: NSVisualEffectView.Material = .windowBackground,
+         blendingMode: NSVisualEffectView.BlendingMode = .behindWindow) {
+        self.material = material
+        self.blendingMode = blendingMode
+    }
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = .active
     }
 }
