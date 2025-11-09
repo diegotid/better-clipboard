@@ -46,6 +46,7 @@ final class WindowController {
         )
         item.keyEquivalentModifierMask = [.command, .shift]
         item.target = self
+        item.image = NSImage(systemSymbolName: "sparkles.rectangle.stack", accessibilityDescription: nil)
         return item
     }()
 
@@ -57,16 +58,18 @@ final class WindowController {
         )
         item.keyEquivalentModifierMask = [.command]
         item.target = self
+        item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
         return item
     }()
 
     private lazy var aboutMenuItem: NSMenuItem = {
         let item = NSMenuItem(
-            title: "About Better...",
+            title: "About Better",
             action: #selector(showAboutWindow(_:)),
             keyEquivalent: ""
         )
         item.target = self
+        item.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
         return item
     }()
 
@@ -77,6 +80,7 @@ final class WindowController {
             keyEquivalent: "q"
         )
         item.target = self
+        item.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
         return item
     }()
 
@@ -441,6 +445,12 @@ final class WindowController {
             case RETURN_KEY_CODE:
                 self.handlePasteFrontEntry()
                 return nil
+            case UInt16(kVK_ANSI_R):
+                if event.modifierFlags.contains(.command) {
+                    self.triggerRewriteShortcut()
+                    return nil
+                }
+                return event
             default:
                 return event
             }
@@ -468,6 +478,11 @@ final class WindowController {
             }
             return event
         }
+    }
+
+    private func triggerRewriteShortcut() {
+        guard let frontEntry = entries.first else { return }
+        NotificationCenter.default.post(name: .rewriteFrontEntryRequested, object: frontEntry.id)
     }
 
     private func paste(_ string: String) {
@@ -530,7 +545,7 @@ final class WindowController {
         overlay.layer?.cornerRadius = 22
         overlay.layer?.masksToBounds = true
         overlay.alphaValue = 0
-        let label = NSTextField(labelWithString: "Copied!")
+        let label = NSTextField(labelWithString: "Pasted!")
         label.font = NSFont.systemFont(ofSize: 22, weight: .semibold)
         label.alignment = .center
         label.textColor = .labelColor
