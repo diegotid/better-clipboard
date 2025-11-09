@@ -13,6 +13,7 @@ struct ClipboardEntry: View {
 
     @State private var editedText: String
     @StateObject private var writingToolsController = WritingToolsController()
+    @State private var showingWritingToolsHelp = false
 
     init(entry: TransformedText, isFrontMost: Bool) {
         self.entry = entry
@@ -96,9 +97,15 @@ struct ClipboardEntry: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
+            writingToolsController.onUnavailable = {
+                showingWritingToolsHelp = true
+            }
             if isFrontMost {
                 writingToolsController.focusTextView()
             }
+        }
+        .onDisappear {
+            writingToolsController.onUnavailable = nil
         }
         .onChange(of: isFrontMost) { _, newValue in
             if newValue {
@@ -112,6 +119,11 @@ struct ClipboardEntry: View {
                 return
             }
             writingToolsController.showWritingToolsPanel()
+        }
+        .sheet(isPresented: $showingWritingToolsHelp) {
+            AppleIntelligenceHelpSheet {
+                showingWritingToolsHelp = false
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ extension Notification.Name {
 
 final class WritingToolsController: ObservableObject {
     weak var textView: NSTextView?
+    var onUnavailable: (() -> Void)?
 
     private func ensureSelectionIfNeeded(_ tv: NSTextView) {
         let range = tv.selectedRange()
@@ -27,43 +28,32 @@ final class WritingToolsController: ObservableObject {
             }
         }
     }
-
-    func presentWritingToolsMenu() {
-        guard let tv = textView, let window = tv.window else { return }
+    
+    @discardableResult
+    func showWritingToolsPanel() -> Bool {
+        guard let tv = textView, let window = tv.window else {
+            onUnavailable?()
+            return false
+        }
         window.makeFirstResponder(tv)
         ensureSelectionIfNeeded(tv)
-        var range = tv.selectedRange()
-        if range.location == NSNotFound { range = NSRange(location: 0, length: 0) }
-        let caretRectScreen = tv.firstRect(forCharacterRange: range, actualRange: nil)
-        let caretRectWindow = window.convertFromScreen(caretRectScreen)
-        let localPoint = tv.convert(caretRectWindow.origin, from: nil)
-        guard let event = NSEvent.mouseEvent(
-            with: .rightMouseDown,
-            location: localPoint,
-            modifierFlags: [],
-            timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: window.windowNumber,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 1,
-            pressure: 0
-        ) else { return }
-
-        let contextualMenu = tv.menu(for: event) ?? NSMenu(title: "Edit")
-        NSMenu.popUpContextMenu(contextualMenu, with: event, for: tv)
-    }
-
-    func showWritingToolsPanel() {
-        guard let tv = textView, let window = tv.window else { return }
-        window.makeFirstResponder(tv)
-        ensureSelectionIfNeeded(tv)
+        if NSWritingToolsCoordinator.isWritingToolsAvailable == false {
+            onUnavailable?()
+            return false
+        }
         if tv.tryToPerform(#selector(NSResponder.showWritingTools(_:)), with: nil) {
-            return
+            return true
         }
-        let handled = NSApplication.shared.sendAction(#selector(NSResponder.showWritingTools(_:)), to: nil, from: tv)
-        if handled == false {
-            presentWritingToolsMenu()
+        let handled = NSApplication.shared.sendAction(
+            #selector(NSResponder.showWritingTools(_:)),
+            to: nil,
+            from: tv
+        )
+        if handled {
+            return true
         }
+        onUnavailable?()
+        return false
     }
 
     func focusTextView() {
