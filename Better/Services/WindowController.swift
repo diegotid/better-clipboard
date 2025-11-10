@@ -466,6 +466,9 @@ final class WindowController {
             guard !self.windows.isEmpty else {
                 return event
             }
+            if self.shouldAllowScrollForEditor(event: event) {
+                return event
+            }
             let now = ProcessInfo.processInfo.systemUptime
             let cooldown: TimeInterval = 0.5
             if now - self.lastScrollEventTime < cooldown {
@@ -484,6 +487,19 @@ final class WindowController {
             }
             return event
         }
+    }
+
+    private func shouldAllowScrollForEditor(event: NSEvent) -> Bool {
+        guard let window = event.window else {
+            return false
+        }
+        guard windows.contains(where: { $0.window == window }) else {
+            return false
+        }
+        guard let hitView = window.contentView?.hitTest(event.locationInWindow) else {
+            return false
+        }
+        return hitView.isDescendantOfScrollableEditor
     }
 
     private func triggerRewriteShortcut() {
@@ -615,5 +631,19 @@ final class WindowController {
             entries.insert(entry, at: 0)
         }
         layoutWindows(animated: true)
+    }
+}
+
+private extension NSView {
+    var isDescendantOfScrollableEditor: Bool {
+        var current: NSView? = self
+        while let view = current {
+            if let scrollView = view as? NSScrollView,
+               scrollView.hasVerticalScroller {
+                return true
+            }
+            current = view.superview
+        }
+        return false
     }
 }

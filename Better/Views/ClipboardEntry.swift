@@ -117,6 +117,8 @@ struct ClipboardEntry: View {
         .onChange(of: isFrontMost) { _, newValue in
             if newValue {
                 writingToolsController.focusTextView()
+            } else {
+                writingToolsController.scheduleDismiss()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .rewriteFrontEntryRequested)) { notification in

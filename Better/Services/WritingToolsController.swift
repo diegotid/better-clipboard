@@ -16,6 +16,7 @@ extension Notification.Name {
 final class WritingToolsController: ObservableObject {
     weak var textView: NSTextView?
     var onUnavailable: (() -> Void)?
+    private var pendingDismissal: DispatchWorkItem?
 
     private func ensureSelectionIfNeeded(_ tv: NSTextView) {
         let range = tv.selectedRange()
@@ -60,6 +61,34 @@ final class WritingToolsController: ObservableObject {
         guard let tv = textView else {
             return
         }
+        pendingDismissal?.cancel()
+        pendingDismissal = nil
         tv.window?.makeFirstResponder(tv)
+    }
+
+    func dismissWritingToolsIfNeeded() {
+        guard let tv = textView else {
+            return
+        }
+        var dismissed = false
+        if #available(macOS 15.2, *) {
+            if let coordinator = tv.writingToolsCoordinator,
+               coordinator.state != .inactive {
+                coordinator.stopWritingTools()
+                dismissed = true
+            }
+        }
+        if dismissed == false {
+            _ = tv.tryToPerform(#selector(NSResponder.cancelOperation(_:)), with: nil)
+        }
+    }
+
+    func scheduleDismiss(delay: TimeInterval = 0.25) {
+        pendingDismissal?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.dismissWritingToolsIfNeeded()
+        }
+        pendingDismissal = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 }
