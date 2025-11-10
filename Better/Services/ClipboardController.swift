@@ -16,7 +16,7 @@ final class ClipboardController: ObservableObject {
         }
     }
     
-    private let CAPACITY: Int = 30
+    private let capacity: Int = 30
 
     private let watcher = ClipboardWatcher()
     private let historyFileURL: URL = {
@@ -45,7 +45,7 @@ final class ClipboardController: ObservableObject {
                     let entry = CopiedText(original: trimmed, date: Date())
                     let dedupedHistory = self.history.filter { $0.original != trimmed }
                     let updated = [entry] + dedupedHistory
-                    self.history = Array(updated.prefix(self.CAPACITY))
+                    self.history = Array(updated.prefix(self.capacity))
                 }
             }
         }
@@ -67,9 +67,13 @@ final class ClipboardController: ObservableObject {
         do {
             let data = try Data(contentsOf: historyFileURL)
             let loaded = try JSONDecoder().decode([CopiedText].self, from: data)
-            history = Array(loaded.prefix(CAPACITY))
+            history = Array(loaded.prefix(capacity))
         } catch {
             print("Failed to load clipboard history: \(error)")
         }
+    }
+
+    func removeEntry(with id: UUID) {
+        history.removeAll { $0.id == id }
     }
 }

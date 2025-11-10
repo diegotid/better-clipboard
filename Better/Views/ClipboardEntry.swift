@@ -42,6 +42,33 @@ struct ClipboardEntry: View {
             if isFrontMost {
                 Spacer()
                 HStack(spacing: 12) {
+                    Button(action: {
+                        NotificationCenter.default.post(name: .deleteFrontEntryRequested,
+                                                        object: entry.id)
+                    }) {
+                        HStack {
+                            HStack {
+                                Image(systemName: "command")
+                                Image(systemName: "delete.left")
+                                    .padding(.leading, -5)
+                            }
+                            .padding(4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(.ultraThickMaterial)
+                            )
+                            Text("Delete")
+                                .font(.body)
+                                .foregroundStyle(.red)
+                                .padding(.trailing, 8)
+                        }
+                        .padding(3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(.secondary.opacity(0.6))
+                        )
+                    }
+                    .keyboardShortcut(.delete, modifiers: .command)
                     Spacer()
                     Button(action: {
                         writingToolsController.showWritingToolsPanel()

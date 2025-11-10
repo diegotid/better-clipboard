@@ -30,6 +30,7 @@ final class WindowController {
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
     private var resignActiveObserver: Any?
+    private var deleteRequestObserver: Any?
     private var lastScrollEventTime: TimeInterval = 0
     private var aboutWindow: NSWindow?
     private var lastActiveApp: NSRunningApplication?
@@ -89,6 +90,17 @@ final class WindowController {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         configureStatusItem()
         registerHotKey()
+        deleteRequestObserver = NotificationCenter.default.addObserver(
+            forName: .deleteFrontEntryRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            let entryID = notification.object as? UUID
+            Task { @MainActor in
+                self.deleteFrontEntry(requestedID: entryID)
+            }
+        }
         resignActiveObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: nil,
@@ -113,6 +125,9 @@ final class WindowController {
         if let monitor = scrollMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        if let observer = deleteRequestObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         if let aboutWin = aboutWindow {
             Task { @MainActor in
                 aboutWin.close()
@@ -134,12 +149,16 @@ final class WindowController {
         }
     }
 
-    private func showWindows() {
-        lastActiveApp = NSWorkspace.shared.frontmostApplication
+    private func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
+        if captureLastApp {
+            lastActiveApp = NSWorkspace.shared.frontmostApplication
+        }
         closeWindows()
         let history = clipboard.history
         guard !history.isEmpty else {
-            presentEmptyClipboardAlert()
+            if presentEmptyAlert {
+                presentEmptyClipboardAlert()
+            }
             return
         }
         baseHistory = history
@@ -180,6 +199,36 @@ final class WindowController {
             alert.beginSheetModal(for: window)
         } else {
             alert.runModal()
+        }
+    }
+
+    private func deleteFrontEntry(requestedID: UUID? = nil) {
+        guard let frontEntry = entries.first else {
+            return
+        }
+        if let requestedID, requestedID != frontEntry.id {
+            return
+        }
+        self.deleteFrontEntry(frontEntry)
+    }
+
+    private func deleteFrontEntry(_ entry: CopiedText) {
+        guard !windows.isEmpty else {
+            clipboard.removeEntry(with: entry.id)
+            return
+        }
+        let frontPair = windows.removeFirst()
+        let frontWindow = frontPair.window
+        entries.removeFirst()
+        clipboard.removeEntry(with: entry.id)
+        animateRemoval(of: frontWindow) { [weak self] in
+            guard let self else { return }
+            self.windows = self.windows.filter { $0.window != frontWindow }
+            if self.clipboard.history.isEmpty {
+                self.closeWindows()
+            } else {
+                self.layoutWindows(animated: true)
+            }
         }
     }
 
@@ -341,6 +390,23 @@ final class WindowController {
         return view
     }
 
+    private func animateRemoval(of window: NSWindow, completion: @escaping () -> Void) {
+        guard let view = window.contentView else {
+            completion()
+            return
+        }
+        let newFrame = window.frame.offsetBy(dx: 0, dy: -40)
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.18
+            window.animator().alphaValue = 0
+            window.animator().setFrame(newFrame, display: true)
+        }, completionHandler: {
+            window.orderOut(nil)
+            window.close()
+            completion()
+        })
+    }
+
     private func layoutWindows(animated: Bool) {
         guard !windows.isEmpty, windows.count == entries.count else {
             return
@@ -457,6 +523,12 @@ final class WindowController {
             case UInt16(kVK_UpArrow):
                 self.rotateWheel(direction: .newer)
                 return nil
+            case UInt16(kVK_Delete):
+                if event.modifierFlags.contains(.command) {
+                    self.deleteFrontEntry()
+                    return nil
+                }
+                return event
             case UInt16(ESCAPE_KEY_CODE):
                 self.closeWindows()
                 return nil
