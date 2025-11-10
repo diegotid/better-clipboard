@@ -342,7 +342,7 @@ final class WindowController {
         let hostingController = NSHostingController(
             rootView: ClipboardEntry(entry: entry, isFrontMost: false)
         )
-        let window = NSWindow(
+        let window = FloatingClipboardWindow(
             contentRect: NSRect(origin: .zero, size: NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)),
             styleMask: [.borderless],
             backing: .buffered,
@@ -391,7 +391,7 @@ final class WindowController {
     }
 
     private func animateRemoval(of window: NSWindow, completion: @escaping () -> Void) {
-        guard let view = window.contentView else {
+        guard window.contentView != nil else {
             completion()
             return
         }
@@ -732,4 +732,9 @@ private extension NSView {
         }
         return false
     }
+}
+
+private final class FloatingClipboardWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }

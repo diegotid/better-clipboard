@@ -29,7 +29,7 @@ struct ClipboardEntry: View {
             ZStack(alignment: .topLeading) {
                 WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
                 WritingToolsEditor(text: $editedText, controller: writingToolsController)
-                    .frame(minHeight: 160)
+                    .frame(height: 160)
             }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -39,6 +39,7 @@ struct ClipboardEntry: View {
             Text(entry.original)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(height: 90)
             if isFrontMost {
                 Spacer()
                 HStack(spacing: 12) {
