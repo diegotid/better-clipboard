@@ -1,8 +1,8 @@
 {
   "fill" : {
     "linear-gradient" : [
-      "display-p3:0.50292,0.76000,0.85109,1.00000",
-      "display-p3:0.27453,0.57805,0.55420,1.00000"
+      "display-p3:0.44961,0.73146,0.93656,1.00000",
+      "display-p3:0.20870,0.42477,0.94830,1.00000"
     ]
   },
   "groups" : [
@@ -11,58 +11,135 @@
         {
           "blend-mode-specializations" : [
             {
-              "value" : "hard-light"
+              "value" : "normal"
             },
             {
               "appearance" : "dark",
-              "value" : "darken"
+              "value" : "soft-light"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "plus-lighter"
+            }
+          ],
+          "fill-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
             }
           ],
           "glass" : false,
-          "image-name" : "white-sparkles.png",
+          "image-name-specializations" : [
+            {
+              "value" : "white-sparkles.png"
+            },
+            {
+              "idiom" : "square",
+              "value" : "white-sparkles.png"
+            }
+          ],
           "name" : "white-sparkles",
           "opacity-specializations" : [
             {
-              "value" : 0.66
+              "value" : 1
             },
             {
               "appearance" : "dark",
+              "value" : 1
+            },
+            {
+              "appearance" : "tinted",
               "value" : 1
             }
           ]
         },
         {
-          "blend-mode-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : "multiply"
-            },
-            {
-              "appearance" : "tinted",
-              "value" : "hard-light"
-            }
-          ],
           "fill-specializations" : [
             {
               "appearance" : "dark",
               "value" : {
-                "solid" : "display-p3:0.50292,0.76000,0.85109,1.00000"
+                "solid" : "display-p3:0.20857,0.42502,0.94732,1.00000"
               }
+            }
+          ],
+          "glass" : true,
+          "image-name" : "card-front.png",
+          "name" : "card-front",
+          "opacity-specializations" : [
+            {
+              "value" : 0.65
             },
             {
               "appearance" : "tinted",
+              "value" : 0.65
+            }
+          ]
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
               "value" : {
                 "solid" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
               }
             }
           ],
-          "glass" : false,
-          "image-name" : "stack.png",
-          "name" : "stack",
+          "glass" : true,
+          "image-name" : "card-middle.png",
+          "name" : "card-middle",
           "opacity-specializations" : [
             {
+              "value" : 0.55
+            },
+            {
               "appearance" : "tinted",
-              "value" : 1
+              "value" : 0.55
+            }
+          ],
+          "position-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1,
+                "translation-in-points" : [
+                  0,
+                  18
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+              }
+            }
+          ],
+          "glass" : true,
+          "image-name" : "card-back.png",
+          "name" : "card-back",
+          "opacity-specializations" : [
+            {
+              "value" : 0.45
+            },
+            {
+              "appearance" : "tinted",
+              "value" : 0.45
+            }
+          ],
+          "position-specializations" : [
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1,
+                "translation-in-points" : [
+                  0,
+                  36
+                ]
+              }
             }
           ]
         }

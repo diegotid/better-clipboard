@@ -48,6 +48,7 @@ struct WritingToolsEditor: NSViewRepresentable {
         tv.delegate = context.coordinator
         tv.textContainerInset = NSSize(width: 6, height: 8)
         tv.usesAdaptiveColorMappingForDarkAppearance = true
+        tv.drawsBackground = false
         scroll.documentView = tv
         controller.textView = tv
         return scroll
@@ -88,9 +89,7 @@ struct WritingToolsEditor: NSViewRepresentable {
     }
 
     static func blurredBackground(cornerRadius: CGFloat = 12) -> some View {
-        VisualEffectBlur(material: .contentBackground)
-            .background(Color(NSColor.windowBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        VisualEffectBlur(material: .contentBackground).opacity(0.6)
     }
 }
 

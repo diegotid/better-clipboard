@@ -29,7 +29,7 @@ struct ClipboardEntry: View {
             ZStack(alignment: .topLeading) {
                 WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
                 WritingToolsEditor(text: $editedText, controller: writingToolsController)
-                    .frame(minHeight: 88)
+                    .frame(minHeight: 160)
             }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
