@@ -139,6 +139,7 @@ final class WindowController {
         closeWindows()
         let history = clipboard.history
         guard !history.isEmpty else {
+            presentEmptyClipboardAlert()
             return
         }
         baseHistory = history
@@ -167,6 +168,19 @@ final class WindowController {
             scrollMonitor = nil
         }
         updateToggleMenuTitle()
+    }
+
+    private func presentEmptyClipboardAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Clipboard is Empty"
+        alert.informativeText = "Copy something first to see it here."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
     }
 
     private func configureStatusItem() {
