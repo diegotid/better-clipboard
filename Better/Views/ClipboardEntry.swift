@@ -23,9 +23,36 @@ struct ClipboardEntry: View {
     }
     
     let cornerRadius: CGFloat = 12
+    
+    var formattedDate: String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        if calendar.isDateInToday(entry.date) {
+            formatter.dateFormat = "HH:mm"
+            return formatter.string(from: entry.date)
+        } else if calendar.isDateInYesterday(entry.date) {
+            formatter.dateFormat = "HH:mm"
+            return "\(String(localized: "yesterday")), \(formatter.string(from: entry.date))"
+        } else {
+            formatter.setLocalizedDateFormatFromTemplate("MMM d")
+            var dateString = formatter.string(from: entry.date)
+            if formatter.locale.identifier.hasPrefix("en") {
+                let day = calendar.component(.day, from: entry.date)
+                let formatterOrdinal = NumberFormatter()
+                formatterOrdinal.numberStyle = .ordinal
+                if let dayOrdinal = formatterOrdinal.string(from: NSNumber(value: day)) {
+                    dateString = dateString.replacingOccurrences(of: "\\d+", with: dayOrdinal, options: .regularExpression)
+                }
+            }
+            return dateString
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Copied \(formattedDate)")
+                .font(.caption2)
             ZStack(alignment: .topLeading) {
                 WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
                 WritingToolsEditor(text: $editedText, controller: writingToolsController)
