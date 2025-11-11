@@ -105,6 +105,36 @@ struct ClipboardEntry: View {
                     }
                     .keyboardShortcut(.delete, modifiers: .command)
                     Spacer()
+                    if editedText != entry.original {
+                        Button(action: {
+                            editedText = entry.original
+                        }) {
+                            HStack {
+                                HStack {
+                                    Image(systemName: "command")
+                                    Text("U")
+                                        .font(.callout)
+                                        .padding(.leading, -5)
+                                        .padding(.trailing, 1)
+                                        .padding(.vertical, -3)
+                                }
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(.ultraThickMaterial)
+                                )
+                                Text("Back to original")
+                                    .font(.body)
+                                    .padding(.trailing, 8)
+                            }
+                            .padding(3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.6))
+                            )
+                        }
+                        .keyboardShortcut("u", modifiers: .command)
+                    }
                     Button(action: {
                         writingToolsController.showWritingToolsPanel()
                     }) {
@@ -122,8 +152,10 @@ struct ClipboardEntry: View {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                                     .fill(.ultraThickMaterial)
                             )
-                            Text("Rewrite")
-                                .font(.body)
+                            if entry.original == editedText {
+                                Text("Rewrite")
+                                    .font(.body)
+                            }
                             Image(systemName: "sparkles")
                                 .font(.subheadline)
                                 .foregroundStyle(.primary)
