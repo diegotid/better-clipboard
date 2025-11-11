@@ -8,18 +8,20 @@
 import SwiftUI
 
 struct ClipboardEntry: View {
-    let entry: CopiedText
+    var entry: CopiedText
     let isFrontMost: Bool
+    let onChange: (UUID, String) -> Void
 
     @State private var editedText: String
     @State private var showingWritingToolsHelp = false
     
     @StateObject private var writingToolsController = WritingToolsController()
 
-    init(entry: CopiedText, isFrontMost: Bool) {
+    init(entry: CopiedText, isFrontMost: Bool, onChange: @escaping (UUID, String) -> Void) {
         self.entry = entry
         self.isFrontMost = isFrontMost
-        _editedText = State(initialValue: entry.original)
+        self.onChange = onChange
+        _editedText = State(initialValue: entry.rewritten ?? entry.original)
     }
     
     let cornerRadius: CGFloat = 12
@@ -56,17 +58,22 @@ struct ClipboardEntry: View {
             ZStack(alignment: .topLeading) {
                 WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
                 WritingToolsEditor(text: $editedText, controller: writingToolsController)
-                    .frame(height: 160)
+                    .onChange(of: editedText) {
+                        onChange(entry.id, editedText)
+                    }
             }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(.quaternary)
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            Text(entry.original)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(height: 90)
+            if editedText != entry.original {
+                Text("Original text")
+                    .font(.caption2)
+                Text(entry.original)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if isFrontMost {
                 Spacer()
                 HStack(spacing: 12) {
@@ -131,7 +138,8 @@ struct ClipboardEntry: View {
                     .keyboardShortcut("r", modifiers: .command)
                     Button(action: {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(entry.original, forType: .string)
+                        NSPasteboard.general.setString(entry.rewritten ?? entry.original,
+                                                       forType: .string)
                     }) {
                         HStack {
                             Image(systemName: "return")

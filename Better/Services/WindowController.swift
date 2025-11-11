@@ -274,6 +274,7 @@ final class WindowController {
                 clipboard.history = []
             }
         }
+        self.clipboard.saveHistory()
     }
 
     @objc
@@ -337,10 +338,25 @@ final class WindowController {
             }
         }
     }
+    
+    private func handleEntryUpdate(id: UUID, text: String) {
+        clipboard.updateRewritten(for: id, value: text)
+        if let idx = entries.firstIndex(where: { $0.id == id }) {
+            entries[idx].updateRewritten(text)
+        }
+        if let idx = baseHistory.firstIndex(where: { $0.id == id }) {
+            baseHistory[idx].updateRewritten(text)
+        }
+        clipboard.saveHistory()
+    }
 
     private func createWindow(for entry: CopiedText) -> (NSWindow, NSHostingController<ClipboardEntry>) {
         let hostingController = NSHostingController(
-            rootView: ClipboardEntry(entry: entry, isFrontMost: false)
+            rootView: ClipboardEntry(entry: entry,
+                                     isFrontMost: false,
+                                     onChange: { [weak self] id, text in
+                                         self?.handleEntryUpdate(id: id, text: text)
+                                     })
         )
         let window = FloatingClipboardWindow(
             contentRect: NSRect(origin: .zero, size: NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)),
@@ -451,7 +467,11 @@ final class WindowController {
             let frame = NSRect(origin: origin, size: windowSize)
             window.contentMinSize = windowSize
             window.contentMaxSize = windowSize
-            host.rootView = ClipboardEntry(entry: entry, isFrontMost: isFront)
+            host.rootView = ClipboardEntry(entry: entry,
+                                           isFrontMost: isFront,
+                                           onChange: { [weak self] id, text in
+                                                self?.handleEntryUpdate(id: id, text: text)
+                                            })
             if let tintView = window.contentView?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("tint") }) {
                 tintView.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: isFront ? 0.08 : 0.22).cgColor
             }

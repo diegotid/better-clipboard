@@ -39,12 +39,13 @@ struct WritingToolsEditor: NSViewRepresentable {
         tv.commandRAction = { [weak controller] in
             controller?.showWritingToolsPanel()
         }
-        tv.isEditable = true
         tv.isRichText = false
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDataDetectionEnabled = false
         tv.font = .preferredFont(forTextStyle: .body)
-        tv.string = text
+        tv.performProgrammaticEdit {
+            tv.string = text
+        }
         tv.delegate = context.coordinator
         tv.textContainerInset = NSSize(width: 6, height: 8)
         tv.usesAdaptiveColorMappingForDarkAppearance = true
@@ -55,8 +56,10 @@ struct WritingToolsEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if let tv = nsView.documentView as? NSTextView, tv.string != text {
-            tv.string = text
+        if let tv = nsView.documentView as? ShortcutAwareTextView, tv.string != text {
+            tv.performProgrammaticEdit {
+                tv.string = text
+            }
         }
         nsView.wantsLayer = true
         nsView.layer?.cornerRadius = cornerRadius
@@ -95,6 +98,7 @@ struct WritingToolsEditor: NSViewRepresentable {
 
 private final class ShortcutAwareTextView: NSTextView {
     var commandRAction: (() -> Void)?
+    private var programmaticEditDepth = 0
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if handleCommandR(event: event) {
@@ -108,6 +112,22 @@ private final class ShortcutAwareTextView: NSTextView {
             return
         }
         super.keyDown(with: event)
+    }
+
+    func performProgrammaticEdit(_ block: () -> Void) {
+        programmaticEditDepth += 1
+        block()
+        programmaticEditDepth -= 1
+    }
+
+    override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        if programmaticEditDepth > 0 {
+            return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+        }
+        if #available(macOS 15.0, *), self.isWritingToolsActive {
+            return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+        }
+        return false
     }
 
     private func handleCommandR(event: NSEvent) -> Bool {

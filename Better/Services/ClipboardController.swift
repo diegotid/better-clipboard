@@ -10,14 +10,9 @@ import Foundation
 
 @MainActor
 final class ClipboardController: ObservableObject {
-    @Published var history: [CopiedText] = [] {
-        didSet {
-            saveHistory()
-        }
-    }
+    @Published var history: [CopiedText] = []
     
     private let capacity: Int = 30
-
     private let watcher = ClipboardWatcher()
     private let historyFileURL: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -51,7 +46,7 @@ final class ClipboardController: ObservableObject {
         }
     }
 
-    private func saveHistory() {
+    func saveHistory() {
         do {
             let data = try JSONEncoder().encode(history)
             try data.write(to: historyFileURL, options: .atomic)
@@ -75,5 +70,14 @@ final class ClipboardController: ObservableObject {
 
     func removeEntry(with id: UUID) {
         history.removeAll { $0.id == id }
+    }
+
+    func updateRewritten(for id: UUID, value: String?) {
+        guard let index = history.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        var entry = history[index]
+        entry.updateRewritten(value)
+        history[index] = entry
     }
 }
