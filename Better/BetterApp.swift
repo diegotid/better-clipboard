@@ -17,6 +17,7 @@ struct BetterApp: App {
         _clipboardController = StateObject(wrappedValue: clipboard)
         menuBarController = WindowController(clipboard: clipboard)
         NSApplication.shared.setActivationPolicy(.accessory)
+        menuBarController.presentInitialWindowsIfNeeded()
     }
 
     var body: some Scene {

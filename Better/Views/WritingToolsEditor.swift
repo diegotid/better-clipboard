@@ -6,13 +6,12 @@
 //
 
 import SwiftUI
-import AppKit
 
 struct WritingToolsEditor: NSViewRepresentable {
     @Binding var text: String
     @ObservedObject var controller: WritingToolsController
     
-    let cornerRadius: CGFloat = 12
+    private let cornerRadius: CGFloat = 12
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)

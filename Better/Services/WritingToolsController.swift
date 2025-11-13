@@ -12,6 +12,8 @@ import AppKit
 extension Notification.Name {
     static let rewriteFrontEntryRequested = Notification.Name("rewriteFrontEntryRequested")
     static let deleteFrontEntryRequested = Notification.Name("deleteFrontEntryRequested")
+    static let searchEntriesRequested = Notification.Name("searchEntriesRequested")
+    static let wrapToFirstEntryRequested = Notification.Name("wrapToFirstEntryRequested")
 }
 
 final class WritingToolsController: ObservableObject {

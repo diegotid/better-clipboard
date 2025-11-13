@@ -5,22 +5,23 @@
 //  Created by Diego Rivera on 2/11/25.
 //
 
+import SwiftUI
 import AppKit
 import Carbon.HIToolbox
-import SwiftUI
-import QuartzCore
+import Combine
 
-private let ESCAPE_KEY_CODE: Int = 53
-private let RETURN_KEY_CODE: UInt16 = 36
-private let WINDOW_WIDTH: CGFloat = 500
-private let WINDOW_HEIGHT: CGFloat = 350
-private let OFFSET_STEP: Int = 110
-private let OFFSET_DECAY: CGFloat = 0.6
-private let OPACITY_STEP: CGFloat = 0.2
-private let SCALE_STEP: CGFloat = 0.1
+private let escapeKeyCode: Int = 53
+private let returnKeyCode: UInt16 = 36
+private let cornerRadius: CGFloat = 24
+private let offsetStep: Int = 110
+private let offsetDecay: CGFloat = 0.6
+private let opacityStep: CGFloat = 0.2
+private let scaleStep: CGFloat = 0.1
+private let windowSize = NSSize(width: 500, height: 350)
+private let statusOverlayBarSize = NSSize(width: 360, height: 48)
 
 @MainActor
-final class WindowController {
+final class WindowController: NSObject, NSMenuItemValidation {
     private let statusItem: NSStatusItem
     private let clipboard: ClipboardController
     private var windows: [(window: NSWindow, host: NSHostingController<ClipboardEntry>)] = []
@@ -34,9 +35,25 @@ final class WindowController {
     private var lastScrollEventTime: TimeInterval = 0
     private var aboutWindow: NSWindow?
     private var lastActiveApp: NSRunningApplication?
+    private var statusOverlayBar: NSWindow?
+    private var statusOverlayHostingController: NSHostingController<StatusOverlayBar>?
+    private let statusOverlayContext = StatusOverlayContext()
+    private var statusOverlaySearchObserver: AnyCancellable?
+    private var hasPresentedInitialWindows = false
 
     private var showingWindows: Bool {
         windows.contains(where: { $0.window.isVisible })
+    }
+
+    private var searchText: String = ""
+    private var filteredEntries: [CopiedText] {
+        let lowercasedSearch = searchText.lowercased()
+        if lowercasedSearch.isEmpty {
+            return baseHistory
+        }
+        return baseHistory.filter { entry in
+            entry.original.lowercased().contains(lowercasedSearch)
+        }
     }
 
     private lazy var toggleMenuItem: NSMenuItem = {
@@ -55,7 +72,7 @@ final class WindowController {
         let item = NSMenuItem(
             title: "Clear Clipboard History",
             action: #selector(clearClipboardHistoryAction(_:)),
-            keyEquivalent: "\u{8}"
+            keyEquivalent: ""
         )
         item.keyEquivalentModifierMask = [.command]
         item.target = self
@@ -88,8 +105,17 @@ final class WindowController {
     init(clipboard: ClipboardController) {
         self.clipboard = clipboard
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        super.init()
         configureStatusItem()
         registerHotKey()
+        statusOverlayContext.setSearchTextIfNeeded(searchText)
+        statusOverlaySearchObserver = statusOverlayContext.$searchText
+            .removeDuplicates()
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newValue in
+                self?.handleSearchTextChange(newValue)
+            }
         deleteRequestObserver = NotificationCenter.default.addObserver(
             forName: .deleteFrontEntryRequested,
             object: nil,
@@ -149,6 +175,14 @@ final class WindowController {
         }
     }
 
+    func presentInitialWindowsIfNeeded() {
+        guard hasPresentedInitialWindows == false else {
+            return
+        }
+        hasPresentedInitialWindows = true
+        showWindows(presentEmptyAlert: false, captureLastApp: false)
+    }
+
     private func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
         if captureLastApp {
             lastActiveApp = NSWorkspace.shared.frontmostApplication
@@ -163,8 +197,8 @@ final class WindowController {
         }
         baseHistory = history
         entryIndexLookup = Dictionary(uniqueKeysWithValues: history.enumerated().map { ($0.element.id, $0.offset) })
-        entries = history
-        windows = history.map { createWindow(for: $0) }
+        entries = filteredEntries
+        windows = filteredEntries.map { createWindow(for: $0) }
         layoutWindows(animated: false)
         installEventMonitors()
         NSApp.activate(ignoringOtherApps: true)
@@ -186,6 +220,7 @@ final class WindowController {
             NSEvent.removeMonitor(monitor)
             scrollMonitor = nil
         }
+        hideStatusOverlayBar()
         updateToggleMenuTitle()
     }
 
@@ -227,6 +262,9 @@ final class WindowController {
             if self.clipboard.history.isEmpty {
                 self.closeWindows()
             } else {
+                self.baseHistory = self.clipboard.history
+                self.entries = self.filteredEntries
+                self.windows = self.filteredEntries.map { self.createWindow(for: $0) }
                 self.layoutWindows(animated: true)
             }
         }
@@ -262,19 +300,25 @@ final class WindowController {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Clear History")
         alert.addButton(withTitle: "Cancel")
+        let processConfirmation: () -> Void = { [weak self] in
+            _ = self
+            self?.clipboard.history = []
+            self?.clipboard.saveHistory()
+            self?.closeWindows()
+        }
         if let window = NSApp.keyWindow {
-            alert.beginSheetModal(for: window) { [weak self] response in
-                if response == .alertFirstButtonReturn {
-                    self?.clipboard.history = []
+            alert.beginSheetModal(for: window) { response in
+                guard response == .alertFirstButtonReturn else {
+                    return
                 }
+                processConfirmation()
             }
         } else {
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
-                clipboard.history = []
+                processConfirmation()
             }
         }
-        self.clipboard.saveHistory()
     }
 
     @objc
@@ -359,7 +403,7 @@ final class WindowController {
                                      })
         )
         let window = FloatingClipboardWindow(
-            contentRect: NSRect(origin: .zero, size: NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)),
+            contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -373,9 +417,9 @@ final class WindowController {
         window.contentViewController = hostingController
         window.level = NSWindow.Level.floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let container = NSView(frame: NSRect(origin: .zero, size: NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)))
+        let container = NSView(frame: NSRect(origin: .zero, size: windowSize))
         container.wantsLayer = true
-        container.layer?.cornerRadius = 24
+        container.layer?.cornerRadius = cornerRadius
         container.layer?.masksToBounds = true
         let blurView = makeBlurView(container: container)
         let hostingView = makeHostingView(container: container, hostingController: hostingController)
@@ -383,6 +427,13 @@ final class WindowController {
         container.addSubview(hostingView)
         window.contentView = container
         return (window, hostingController)
+    }
+
+    private func closeWindowPairs(_ windowPairs: [(window: NSWindow, host: NSHostingController<ClipboardEntry>)]) {
+        for (window, _) in windowPairs {
+            window.orderOut(nil)
+            window.close()
+        }
     }
 
     private func makeBlurView(container: NSView) -> NSVisualEffectView {
@@ -395,13 +446,14 @@ final class WindowController {
         return view
     }
 
-    private func makeHostingView(container: NSView, hostingController: NSHostingController<ClipboardEntry>) -> NSView {
+    private func makeHostingView<Content: View>(container: NSView,
+                                                hostingController: NSHostingController<Content>) -> NSView {
         let view = hostingController.view
         view.frame = container.bounds
         view.autoresizingMask = [.width, .height]
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.clear.cgColor
-        view.layer?.cornerRadius = 24
+        view.layer?.cornerRadius = cornerRadius
         view.layer?.masksToBounds = true
         return view
     }
@@ -434,7 +486,6 @@ final class WindowController {
               let frontIndex = entryIndexLookup[frontEntry.id] else {
             return
         }
-        let baseSize = NSSize(width: WINDOW_WIDTH, height: WINDOW_HEIGHT)
         let screenFrame = screen.visibleFrame
         let centerPoint = NSPoint(x: screenFrame.midX, y: screenFrame.midY)
         var belowStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, baseIndex: Int)] = []
@@ -456,10 +507,12 @@ final class WindowController {
         belowStack.sort { $0.baseIndex < $1.baseIndex }
         aboveStack.sort { $0.baseIndex > $1.baseIndex }
         var updates: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, frame: NSRect, alpha: CGFloat, entry: CopiedText, isFront: Bool)] = []
+        var frontFrame: NSRect?
+        var frontWindowReference: NSWindow?
         func recordUpdate(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
-            let scale = max(1.0 - CGFloat(depth) * SCALE_STEP, 0.3)
-            let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * OPACITY_STEP
-            let windowSize = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
+            let scale = max(1.0 - CGFloat(depth) * scaleStep, 0.3)
+            let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * opacityStep
+            let windowSize = NSSize(width: windowSize.width * scale, height: windowSize.height * scale)
             let origin = NSPoint(
                 x: centerPoint.x - windowSize.width / 2,
                 y: centerPoint.y - windowSize.height / 2 + offsetY
@@ -476,20 +529,24 @@ final class WindowController {
                 tintView.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: isFront ? 0.08 : 0.22).cgColor
             }
             updates.append((window, host, frame, opacity, entry, isFront))
+            if isFront {
+                frontFrame = frame
+            }
         }
         if let (frontWindow, frontHost) = windows.first {
+            frontWindowReference = frontWindow
             recordUpdate(window: frontWindow, host: frontHost, entry: frontEntry, depth: 0, offsetY: 0, isFront: true)
         }
         var belowOffset: CGFloat = 0
         for (position, element) in belowStack.enumerated() {
-            let multiplier = position == 0 ? 1.0 : pow(OFFSET_DECAY, CGFloat(position))
-            belowOffset -= CGFloat(OFFSET_STEP) * multiplier
+            let multiplier = position == 0 ? 1.0 : pow(offsetDecay, CGFloat(position))
+            belowOffset -= CGFloat(offsetStep) * multiplier
             recordUpdate(window: element.window, host: element.host, entry: element.entry, depth: position + 1, offsetY: belowOffset, isFront: false)
         }
         var aboveOffset: CGFloat = 0
         for (position, element) in aboveStack.enumerated() {
-            let multiplier = position == 0 ? 1.0 : pow(OFFSET_DECAY, CGFloat(position))
-            aboveOffset += CGFloat(OFFSET_STEP) * multiplier
+            let multiplier = position == 0 ? 1.0 : pow(offsetDecay, CGFloat(position))
+            aboveOffset += CGFloat(offsetStep) * multiplier
             recordUpdate(window: element.window, host: element.host, entry: element.entry, depth: position + 1, offsetY: aboveOffset, isFront: false)
         }
         if animated {
@@ -509,6 +566,17 @@ final class WindowController {
                 update.window.alphaValue = update.alpha
             }
         }
+        if let frame = frontFrame,
+           let reference = frontWindowReference {
+            updateStatusOverlayBar(frontFrame: frame,
+                                   referenceWindow: reference,
+                                   screenFrame: screenFrame,
+                                   frontIndex: frontIndex,
+                                   totalCount: entries.count,
+                                   animated: animated)
+        } else {
+            hideStatusOverlayBar()
+        }
         var stackingOrder: [NSWindow] = []
         if let (frontWindow, _) = windows.first {
             stackingOrder.append(frontWindow)
@@ -519,12 +587,130 @@ final class WindowController {
         for item in aboveStack {
             stackingOrder.append(item.window)
         }
+        let shouldPreserveOverlayFocus = statusOverlayBar?.isKeyWindow == true
         for (index, win) in stackingOrder.enumerated() {
             if index == 0 {
-                win.makeKeyAndOrderFront(nil)
+                if shouldPreserveOverlayFocus {
+                    win.orderFront(nil)
+                } else {
+                    win.makeKeyAndOrderFront(nil)
+                }
             } else {
                 win.order(.below, relativeTo: stackingOrder[index - 1].windowNumber)
             }
+        }
+        if shouldPreserveOverlayFocus {
+            statusOverlayBar?.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    private func statusOverlayComponents() -> (NSWindow, NSHostingController<StatusOverlayBar>) {
+        if let window = statusOverlayBar,
+           let host = statusOverlayHostingController {
+            return (window, host)
+        }
+        let host = NSHostingController(
+            rootView: StatusOverlayBar(
+                context: statusOverlayContext,
+                onWrapToFirst: { [weak self] in
+                    self?.wrapToFirstEntry()
+                }
+            )
+        )
+        let panel = StatusOverlayWindow(
+            contentRect: NSRect(origin: .zero, size: statusOverlayBarSize),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.ignoresMouseEvents = false
+        panel.isReleasedWhenClosed = false
+        panel.contentViewController = host
+        let container = NSView(frame: NSRect(origin: .zero, size: statusOverlayBarSize))
+        container.wantsLayer = true
+        container.layer?.cornerRadius = cornerRadius
+        container.layer?.masksToBounds = true
+        let blurView = makeBlurView(container: container)
+        let hostingView = makeHostingView(container: container, hostingController: host)
+        container.addSubview(blurView)
+        container.addSubview(hostingView)
+        panel.contentView = container
+        panel.setFrame(NSRect(origin: .zero, size: statusOverlayBarSize), display: true)
+        statusOverlayContext.update(index: 1, total: max(entries.count, 1))
+        statusOverlayContext.setSearchTextIfNeeded(searchText)
+        statusOverlayBar = panel
+        statusOverlayHostingController = host
+        return (panel, host)
+    }
+
+    private func updateStatusOverlayBar(
+        frontFrame: NSRect,
+        referenceWindow: NSWindow,
+        screenFrame: NSRect,
+        frontIndex: Int,
+        totalCount: Int,
+        animated: Bool
+    ) {
+        guard totalCount > 0 else {
+            hideStatusOverlayBar()
+            return
+        }
+        let displayIndex = min(max(frontIndex + 1, 1), totalCount)
+        let (window, host) = statusOverlayComponents()
+        statusOverlayContext.update(index: displayIndex, total: totalCount)
+        statusOverlayContext.setSearchTextIfNeeded(searchText)
+        host.view.frame = NSRect(origin: .zero, size: statusOverlayBarSize)
+        let horizontalPadding: CGFloat = 16
+        var origin = NSPoint(x: frontFrame.midX - statusOverlayBarSize.width / 2,
+                             y: frontFrame.maxY + 40)
+        origin.x = min(max(origin.x, screenFrame.minX + horizontalPadding),
+                       screenFrame.maxX - statusOverlayBarSize.width - horizontalPadding)
+        origin.y = min(origin.y, screenFrame.maxY - statusOverlayBarSize.height - horizontalPadding)
+        let frame = NSRect(origin: origin, size: statusOverlayBarSize)
+        let targetLevel = NSWindow.Level(rawValue: referenceWindow.level.rawValue + 1)
+        if window.level != targetLevel {
+            window.level = targetLevel
+        }
+        window.animationBehavior = .utilityWindow
+        func placeWindow() {
+            if animated {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.25
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    window.animator().setFrame(frame, display: true)
+                }
+            } else {
+                window.setFrame(frame, display: true, animate: false)
+            }
+        }
+        if window.isVisible == false {
+            window.alphaValue = 0
+            window.setFrame(frame, display: true)
+            window.order(.above, relativeTo: referenceWindow.windowNumber)
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                window.animator().alphaValue = 1
+            })
+            return
+        }
+        placeWindow()
+        window.order(.above, relativeTo: referenceWindow.windowNumber)
+    }
+
+    private func hideStatusOverlayBar() {
+        guard let window = statusOverlayBar else {
+            return
+        }
+        if window.isVisible {
+            window.orderOut(nil)
         }
     }
 
@@ -535,6 +721,11 @@ final class WindowController {
             }
             guard !self.windows.isEmpty else {
                 return event
+            }
+            if event.keyCode == UInt16(kVK_UpArrow),
+               event.modifierFlags.contains(.command) {
+                NotificationCenter.default.post(name: .wrapToFirstEntryRequested, object: nil)
+                return nil
             }
             switch event.keyCode {
             case UInt16(kVK_DownArrow):
@@ -549,15 +740,23 @@ final class WindowController {
                     return nil
                 }
                 return event
-            case UInt16(ESCAPE_KEY_CODE):
-                self.closeWindows()
+            case UInt16(escapeKeyCode):
+                if self.clearSearchTextIfNeeded() == false {
+                    self.closeWindows()
+                }
                 return nil
-            case RETURN_KEY_CODE:
+            case returnKeyCode:
                 self.handlePasteFrontEntry()
                 return nil
             case UInt16(kVK_ANSI_R):
                 if event.modifierFlags.contains(.command) {
                     self.triggerRewriteShortcut()
+                    return nil
+                }
+                return event
+            case UInt16(kVK_ANSI_F):
+                if event.modifierFlags.contains(.command) {
+                    self.triggerSearchShortcut()
                     return nil
                 }
                 return event
@@ -613,6 +812,28 @@ final class WindowController {
             return
         }
         NotificationCenter.default.post(name: .rewriteFrontEntryRequested, object: frontEntry.id)
+    }
+
+    private func triggerSearchShortcut() {
+        guard showingWindows else {
+            return
+        }
+        _ = statusOverlayComponents()
+        statusOverlayBar?.makeKeyAndOrderFront(nil)
+        NotificationCenter.default.post(name: .searchEntriesRequested, object: nil)
+    }
+
+    private func handleSearchTextChange(_ newValue: String) {
+        guard searchText != newValue else {
+            return
+        }
+        searchText = newValue
+        let previousWindows = windows
+        entries = filteredEntries
+        windows = filteredEntries.map { createWindow(for: $0) }
+        closeWindowPairs(previousWindows)
+        layoutWindows(animated: false)
+        updateToggleMenuTitle()
     }
 
     private func paste(_ string: String) {
@@ -672,7 +893,7 @@ final class WindowController {
         overlay.state = .active
         overlay.isEmphasized = true
         overlay.wantsLayer = true
-        overlay.layer?.cornerRadius = 22
+        overlay.layer?.cornerRadius = cornerRadius
         overlay.layer?.masksToBounds = true
         overlay.alphaValue = 0
         let label = NSTextField(labelWithString: "Pasted!")
@@ -738,6 +959,35 @@ final class WindowController {
         }
         layoutWindows(animated: true)
     }
+
+    private func wrapToFirstEntry() {
+        guard windows.count > 1,
+              windows.count == entries.count else {
+            return
+        }
+        guard let targetIndex = entries.firstIndex(where: { entryIndexLookup[$0.id] == 0 }),
+              targetIndex != 0 else {
+            return
+        }
+        let headEntries = Array(entries[targetIndex...])
+        let tailEntries = Array(entries[..<targetIndex])
+        entries = headEntries + tailEntries
+        let headWindows = Array(windows[targetIndex...])
+        let tailWindows = Array(windows[..<targetIndex])
+        windows = headWindows + tailWindows
+        layoutWindows(animated: true)
+    }
+
+    @discardableResult
+    private func clearSearchTextIfNeeded() -> Bool {
+        let trimmed = statusOverlayContext.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            return false
+        }
+        statusOverlayContext.setSearchTextIfNeeded("")
+        handleSearchTextChange("")
+        return true
+    }
 }
 
 private extension NSView {
@@ -757,4 +1007,18 @@ private extension NSView {
 private final class FloatingClipboardWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+}
+
+private final class StatusOverlayWindow: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+extension WindowController {
+    @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem == clearItem {
+            return !clipboard.history.isEmpty
+        }
+        return true
+    }
 }

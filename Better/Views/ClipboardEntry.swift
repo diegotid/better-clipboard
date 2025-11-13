@@ -24,7 +24,7 @@ struct ClipboardEntry: View {
         _editedText = State(initialValue: entry.rewritten ?? entry.original)
     }
     
-    let cornerRadius: CGFloat = 12
+    private let cornerRadius: CGFloat = 12
     
     var formattedDate: String {
         let calendar = Calendar.current
@@ -71,7 +71,6 @@ struct ClipboardEntry: View {
                 Text("Original text")
                     .font(.caption2)
                 Text(entry.original)
-                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             if isFrontMost {
@@ -94,7 +93,6 @@ struct ClipboardEntry: View {
                             )
                             Text("Delete")
                                 .font(.body)
-                                .foregroundStyle(.red)
                                 .padding(.trailing, 8)
                         }
                         .padding(3)
