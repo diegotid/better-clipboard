@@ -303,7 +303,6 @@ final class WindowController: NSObject, NSMenuItemValidation {
         let processConfirmation: () -> Void = { [weak self] in
             _ = self
             self?.clipboard.history = []
-            self?.clipboard.saveHistory()
             self?.closeWindows()
         }
         if let window = NSApp.keyWindow {

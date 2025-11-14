@@ -10,7 +10,11 @@ import Foundation
 
 @MainActor
 final class ClipboardController: ObservableObject {
-    @Published var history: [CopiedText] = []
+    @Published var history: [CopiedText] = [] {
+        didSet {
+            saveHistory()
+        }
+    }
     
     private let capacity: Int = 30
     private let watcher = ClipboardWatcher()
