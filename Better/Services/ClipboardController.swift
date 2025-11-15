@@ -76,12 +76,13 @@ final class ClipboardController: ObservableObject {
         history.removeAll { $0.id == id }
     }
 
-    func updateRewritten(for id: UUID, value: String?) {
+    func updateRewritten(for id: UUID, value: String?, language: Locale.Language?) {
         guard let index = history.firstIndex(where: { $0.id == id }) else {
             return
         }
         var entry = history[index]
         entry.updateRewritten(value)
+        entry.updateLanguage(language)
         history[index] = entry
     }
 }

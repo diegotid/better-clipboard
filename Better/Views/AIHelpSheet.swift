@@ -1,5 +1,5 @@
 //
-//  AppleIntelligenceHelpSheet.swift
+//  AIHelpSheet.swift
 //  Better
 //
 //  Created by Diego Rivera on 9/11/25.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct AppleIntelligenceHelpSheet: View {
+struct AIHelpSheet: View {
     var onDismiss: () -> Void
     var body: some View {
         VStack(spacing: 24) {
@@ -32,6 +32,7 @@ Turn these settings on, then try Rewrite again.
                 onDismiss()
             }
             .keyboardShortcut(.defaultAction)
+            .help("Dismiss this message")
         }
         .padding(32)
         .frame(width: 420, height: 420)

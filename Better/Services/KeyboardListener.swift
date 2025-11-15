@@ -1,5 +1,5 @@
 //
-//  HotKeyCenter.swift
+//  KeyboardListener.swift
 //  Better
 //
 //  Created by Diego Rivera on 2/11/25.
@@ -8,8 +8,8 @@
 import Carbon.HIToolbox
 
 @MainActor
-final class HotKeyCenter {
-    static let shared = HotKeyCenter()
+final class KeyboardListener {
+    static let shared = KeyboardListener()
 
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
@@ -32,7 +32,7 @@ final class HotKeyCenter {
             guard let userData, let event else {
                 return noErr
             }
-            let hotKeyCenter = Unmanaged<HotKeyCenter>.fromOpaque(userData).takeUnretainedValue()
+            let hotKeyCenter = Unmanaged<KeyboardListener>.fromOpaque(userData).takeUnretainedValue()
             var hotKeyID = EventHotKeyID()
             let error = GetEventParameter(event,
                                           UInt32(kEventParamDirectObject),

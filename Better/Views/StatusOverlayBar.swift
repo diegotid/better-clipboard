@@ -8,8 +8,10 @@
 import SwiftUI
 
 struct StatusOverlayBar: View {
-    @ObservedObject var context: StatusOverlayContext
+    var width: Int = 360
     var onWrapToFirst: () -> Void = {}
+    @ObservedObject var context: StatusOverlayContext
+
     @FocusState private var searchFieldFocused: Bool
 
     private var isSearching: Bool {
@@ -50,6 +52,7 @@ struct StatusOverlayBar: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, -4)
+                .help("Clear search")
             } else {
                 HStack(spacing: 10) {
                     if shouldShowWrapButton {
@@ -94,7 +97,7 @@ struct StatusOverlayBar: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .frame(width: 360, alignment: .leading)
+        .frame(width: CGFloat(width), alignment: .leading)
         .onReceive(NotificationCenter.default.publisher(for: .searchEntriesRequested)) { _ in
             searchFieldFocused = true
         }

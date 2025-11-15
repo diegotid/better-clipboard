@@ -34,30 +34,30 @@ struct WritingToolsEditor: NSViewRepresentable {
             verticalScroller.knobStyle = .default
             verticalScroller.layer?.cornerRadius = cornerRadius
         }
-        let tv = ShortcutAwareTextView(frame: .zero)
-        tv.commandRAction = { [weak controller] in
+        let textView = ShortcutAwareTextView(frame: .zero)
+        textView.commandRAction = { [weak controller] in
             controller?.showWritingToolsPanel()
         }
-        tv.isRichText = false
-        tv.isAutomaticQuoteSubstitutionEnabled = false
-        tv.isAutomaticDataDetectionEnabled = false
-        tv.font = .preferredFont(forTextStyle: .body)
-        tv.performProgrammaticEdit {
-            tv.string = text
+        textView.isRichText = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDataDetectionEnabled = false
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.performProgrammaticEdit {
+            textView.string = text
         }
-        tv.delegate = context.coordinator
-        tv.textContainerInset = NSSize(width: 6, height: 8)
-        tv.usesAdaptiveColorMappingForDarkAppearance = true
-        tv.drawsBackground = false
-        scroll.documentView = tv
-        controller.textView = tv
+        textView.delegate = context.coordinator
+        textView.textContainerInset = NSSize(width: 6, height: 8)
+        textView.usesAdaptiveColorMappingForDarkAppearance = true
+        textView.drawsBackground = false
+        scroll.documentView = textView
+        controller.textView = textView
         return scroll
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if let tv = nsView.documentView as? ShortcutAwareTextView, tv.string != text {
-            tv.performProgrammaticEdit {
-                tv.string = text
+        if let textView = nsView.documentView as? ShortcutAwareTextView, textView.string != text {
+            textView.performProgrammaticEdit {
+                textView.string = text
             }
         }
         nsView.wantsLayer = true
@@ -74,8 +74,8 @@ struct WritingToolsEditor: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
-        if let tv = nsView.documentView as? NSTextView {
-            tv.delegate = nil
+        if let textView = nsView.documentView as? NSTextView {
+            textView.delegate = nil
         }
     }
 
@@ -83,10 +83,10 @@ struct WritingToolsEditor: NSViewRepresentable {
         private let parent: WritingToolsEditor
         init(_ parent: WritingToolsEditor) { self.parent = parent }
         func textDidChange(_ notification: Notification) {
-            guard let tv = notification.object as? NSTextView else {
+            guard let textView = notification.object as? NSTextView else {
                 return
             }
-            parent.text = tv.string
+            parent.text = textView.string
         }
     }
 
@@ -120,11 +120,10 @@ private final class ShortcutAwareTextView: NSTextView {
     }
 
     override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
-        if programmaticEditDepth > 0 {
-            return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
-        }
-        if #available(macOS 15.0, *), self.isWritingToolsActive {
-            return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+        if programmaticEditDepth > 0 ||
+            self.isWritingToolsActive {
+            return super.shouldChangeText(in: affectedCharRange,
+                                          replacementString: replacementString)
         }
         return false
     }

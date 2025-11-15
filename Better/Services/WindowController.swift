@@ -9,6 +9,7 @@ import SwiftUI
 import AppKit
 import Carbon.HIToolbox
 import Combine
+import QuartzCore
 
 private let escapeKeyCode: Int = 53
 private let returnKeyCode: UInt16 = 36
@@ -18,13 +19,16 @@ private let offsetDecay: CGFloat = 0.6
 private let opacityStep: CGFloat = 0.2
 private let scaleStep: CGFloat = 0.1
 private let windowSize = NSSize(width: 500, height: 350)
-private let statusOverlayBarSize = NSSize(width: 360, height: 48)
+private let statusOverlayHeight: Int = 48
+private let statusOverlayWidth: Int = 360
+private let statusSideControlWidth: Int = 72
 
 @MainActor
 final class WindowController: NSObject, NSMenuItemValidation {
-    private let statusItem: NSStatusItem
+    private let statusBarItem: NSStatusItem
     private let clipboard: ClipboardController
-    private var windows: [(window: NSWindow, host: NSHostingController<ClipboardEntry>)] = []
+    private let translator: Translator
+    private var windows: [(window: NSWindow, host: NSHostingController<AnyView>)] = []
     private var entries: [CopiedText] = []
     private var baseHistory: [CopiedText] = []
     private var entryIndexLookup: [UUID: Int] = [:]
@@ -37,15 +41,14 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var lastActiveApp: NSRunningApplication?
     private var statusOverlayBar: NSWindow?
     private var statusOverlayHostingController: NSHostingController<StatusOverlayBar>?
-    private let statusOverlayContext = StatusOverlayContext()
     private var statusOverlaySearchObserver: AnyCancellable?
+    private let statusOverlayContext = StatusOverlayContext()
+    private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
-
+    private var searchText: String = ""
     private var showingWindows: Bool {
         windows.contains(where: { $0.window.isVisible })
     }
-
-    private var searchText: String = ""
     private var filteredEntries: [CopiedText] {
         let lowercasedSearch = searchText.lowercased()
         if lowercasedSearch.isEmpty {
@@ -102,11 +105,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return item
     }()
 
-    init(clipboard: ClipboardController) {
+    init(clipboard: ClipboardController) async {
         self.clipboard = clipboard
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        self.translator = Translator()
+        statusBarItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        configureStatusItem()
+        configureStatusBarItem()
         registerHotKey()
         statusOverlayContext.setSearchTextIfNeeded(searchText)
         statusOverlaySearchObserver = statusOverlayContext.$searchText
@@ -132,9 +136,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self else {
-                return
-            }
+            guard let self else { return }
             Task { @MainActor in
                 self.closeWindows()
             }
@@ -270,8 +272,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func configureStatusItem() {
-        guard let button = statusItem.button else {
+    private func configureStatusBarItem() {
+        guard let button = statusBarItem.button else {
             return
         }
         button.image = NSImage(systemSymbolName: "sparkles.rectangle.stack.fill",
@@ -284,7 +286,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         menu.addItem(aboutMenuItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(quitItem)
-        statusItem.menu = menu
+        statusBarItem.menu = menu
         updateToggleMenuTitle()
     }
 
@@ -370,7 +372,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private func registerHotKey() {
         let keyCode = UInt32(kVK_ANSI_V)
         let modifiers = UInt32(cmdKey | shiftKey)
-        HotKeyCenter.shared.register(keyCode: keyCode, modifiers: modifiers) { [weak self] in
+        KeyboardListener.shared.register(keyCode: keyCode, modifiers: modifiers) { [weak self] in
             guard let self else {
                 return
             }
@@ -382,25 +384,31 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
     
-    private func handleEntryUpdate(id: UUID, text: String) {
-        clipboard.updateRewritten(for: id, value: text)
-        if let idx = entries.firstIndex(where: { $0.id == id }) {
-            entries[idx].updateRewritten(text)
+    private func handleEntryUpdate(id: UUID, text: String, language: Locale.Language?) {
+        clipboard.updateRewritten(for: id, value: text, language: language)
+        if let index = entries.firstIndex(where: { $0.id == id }) {
+            entries[index].updateRewritten(text)
+            entries[index].updateLanguage(language)
         }
-        if let idx = baseHistory.firstIndex(where: { $0.id == id }) {
-            baseHistory[idx].updateRewritten(text)
+        if let index = baseHistory.firstIndex(where: { $0.id == id }) {
+            baseHistory[index].updateRewritten(text)
+            baseHistory[index].updateLanguage(language)
         }
         clipboard.saveHistory()
     }
 
-    private func createWindow(for entry: CopiedText) -> (NSWindow, NSHostingController<ClipboardEntry>) {
-        let hostingController = NSHostingController(
-            rootView: ClipboardEntry(entry: entry,
-                                     isFrontMost: false,
-                                     onChange: { [weak self] id, text in
-                                         self?.handleEntryUpdate(id: id, text: text)
-                                     })
+    private func createWindow(for entry: CopiedText) -> (NSWindow, NSHostingController<AnyView>) {
+        let entryView = AnyView(
+            ClipboardEntry(
+                entry: entry,
+                isFrontMost: false,
+                onChange: { [weak self] id, text, language in
+                    self?.handleEntryUpdate(id: id, text: text, language: language)
+                },
+                languageContext: languageContext
+            ).environment(\.translator, translator)
         )
+        let hostingController = NSHostingController(rootView: entryView)
         let window = FloatingClipboardWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.borderless],
@@ -428,7 +436,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return (window, hostingController)
     }
 
-    private func closeWindowPairs(_ windowPairs: [(window: NSWindow, host: NSHostingController<ClipboardEntry>)]) {
+    private func closeWindowPairs(_ windowPairs: [(window: NSWindow, host: NSHostingController<AnyView>)]) {
         for (window, _) in windowPairs {
             window.orderOut(nil)
             window.close()
@@ -487,12 +495,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         let screenFrame = screen.visibleFrame
         let centerPoint = NSPoint(x: screenFrame.midX, y: screenFrame.midY)
-        var belowStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, baseIndex: Int)] = []
-        var aboveStack: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, baseIndex: Int)] = []
+        var belowStack: [(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedText, baseIndex: Int)] = []
+        var aboveStack: [(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedText, baseIndex: Int)] = []
         if windows.count > 1 {
-            for idx in 1..<windows.count {
-                let (window, host) = windows[idx]
-                let entry = entries[idx]
+            for index in 1..<windows.count {
+                let (window, host) = windows[index]
+                let entry = entries[index]
                 guard let baseIndex = entryIndexLookup[entry.id] else {
                     continue
                 }
@@ -505,10 +513,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         belowStack.sort { $0.baseIndex < $1.baseIndex }
         aboveStack.sort { $0.baseIndex > $1.baseIndex }
-        var updates: [(window: NSWindow, host: NSHostingController<ClipboardEntry>, frame: NSRect, alpha: CGFloat, entry: CopiedText, isFront: Bool)] = []
+        var updates: [(window: NSWindow, host: NSHostingController<AnyView>, frame: NSRect, alpha: CGFloat, entry: CopiedText, isFront: Bool)] = []
         var frontFrame: NSRect?
         var frontWindowReference: NSWindow?
-        func recordUpdate(window: NSWindow, host: NSHostingController<ClipboardEntry>, entry: CopiedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
+        func recordUpdate(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
             let scale = max(1.0 - CGFloat(depth) * scaleStep, 0.3)
             let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * opacityStep
             let windowSize = NSSize(width: windowSize.width * scale, height: windowSize.height * scale)
@@ -519,11 +527,17 @@ final class WindowController: NSObject, NSMenuItemValidation {
             let frame = NSRect(origin: origin, size: windowSize)
             window.contentMinSize = windowSize
             window.contentMaxSize = windowSize
-            host.rootView = ClipboardEntry(entry: entry,
-                                           isFrontMost: isFront,
-                                           onChange: { [weak self] id, text in
-                                                self?.handleEntryUpdate(id: id, text: text)
-                                            })
+            host.rootView = AnyView(
+                ClipboardEntry(entry: entry,
+                               isFrontMost: isFront,
+                               onChange: { [weak self] id, text, language in
+                                   self?.handleEntryUpdate(id: id,
+                                                           text: text,
+                                                           language: language)
+                               },
+                               languageContext: languageContext)
+                .environment(\.translator, translator)
+            )
             if let tintView = window.contentView?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("tint") }) {
                 tintView.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: isFront ? 0.08 : 0.22).cgColor
             }
@@ -610,14 +624,16 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         let host = NSHostingController(
             rootView: StatusOverlayBar(
-                context: statusOverlayContext,
+                width: statusOverlayWidth,
                 onWrapToFirst: { [weak self] in
                     self?.wrapToFirstEntry()
-                }
+                },
+                context: statusOverlayContext
             )
         )
+        let size = NSSize(width: statusOverlayWidth, height: statusOverlayHeight)
         let panel = StatusOverlayWindow(
-            contentRect: NSRect(origin: .zero, size: statusOverlayBarSize),
+            contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -628,11 +644,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.level = .floating
+        panel.becomesKeyOnlyIfNeeded = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.ignoresMouseEvents = false
         panel.isReleasedWhenClosed = false
         panel.contentViewController = host
-        let container = NSView(frame: NSRect(origin: .zero, size: statusOverlayBarSize))
+        let container = NSView(frame: NSRect(origin: .zero, size: size))
         container.wantsLayer = true
         container.layer?.cornerRadius = cornerRadius
         container.layer?.masksToBounds = true
@@ -641,7 +658,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         container.addSubview(blurView)
         container.addSubview(hostingView)
         panel.contentView = container
-        panel.setFrame(NSRect(origin: .zero, size: statusOverlayBarSize), display: true)
+        panel.setFrame(NSRect(origin: .zero, size: size), display: true)
         statusOverlayContext.update(index: 1, total: max(entries.count, 1))
         statusOverlayContext.setSearchTextIfNeeded(searchText)
         statusOverlayBar = panel
@@ -665,14 +682,15 @@ final class WindowController: NSObject, NSMenuItemValidation {
         let (window, host) = statusOverlayComponents()
         statusOverlayContext.update(index: displayIndex, total: totalCount)
         statusOverlayContext.setSearchTextIfNeeded(searchText)
-        host.view.frame = NSRect(origin: .zero, size: statusOverlayBarSize)
+        let size = NSSize(width: statusOverlayWidth, height: statusOverlayHeight)
+        host.view.frame = NSRect(origin: .zero, size: size)
         let horizontalPadding: CGFloat = 16
-        var origin = NSPoint(x: frontFrame.midX - statusOverlayBarSize.width / 2,
+        var origin = NSPoint(x: frontFrame.midX - CGFloat(statusOverlayWidth) / 2,
                              y: frontFrame.maxY + 40)
         origin.x = min(max(origin.x, screenFrame.minX + horizontalPadding),
-                       screenFrame.maxX - statusOverlayBarSize.width - horizontalPadding)
-        origin.y = min(origin.y, screenFrame.maxY - statusOverlayBarSize.height - horizontalPadding)
-        let frame = NSRect(origin: origin, size: statusOverlayBarSize)
+                       screenFrame.maxX - CGFloat(statusOverlayWidth) - horizontalPadding)
+        origin.y = min(origin.y, screenFrame.maxY - CGFloat(statusOverlayHeight) - horizontalPadding)
+        let frame = NSRect(origin: origin, size: size)
         let targetLevel = NSWindow.Level(rawValue: referenceWindow.level.rawValue + 1)
         if window.level != targetLevel {
             window.level = targetLevel
@@ -723,7 +741,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
             if event.keyCode == UInt16(kVK_UpArrow),
                event.modifierFlags.contains(.command) {
-                NotificationCenter.default.post(name: .wrapToFirstEntryRequested, object: nil)
+                NotificationCenter.default.post(name: .wrapToFirstEntryRequested,
+                                                object: nil)
                 return nil
             }
             switch event.keyCode {
@@ -856,7 +875,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     }
 
     private func handlePasteFrontEntry() {
-        guard let (frontWindow, _) = windows.first,
+        guard let _ = windows.first,
               let frontEntry = entries.first else {
             closeWindows()
             return
@@ -876,57 +895,6 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
         }
         layoutWindows(animated: false)
-        presentCopyOverlay(on: frontWindow)
-    }
-
-    private func presentCopyOverlay(on window: NSWindow) {
-        guard let container = window.contentView else {
-            closeWindows()
-            return
-        }
-        let overlaySize = NSSize(width: 220, height: 90)
-        let overlay = NSVisualEffectView(frame: NSRect(origin: .zero, size: overlaySize))
-        overlay.translatesAutoresizingMaskIntoConstraints = false
-        overlay.blendingMode = .withinWindow
-        overlay.material = .popover
-        overlay.state = .active
-        overlay.isEmphasized = true
-        overlay.wantsLayer = true
-        overlay.layer?.cornerRadius = cornerRadius
-        overlay.layer?.masksToBounds = true
-        overlay.alphaValue = 0
-        let label = NSTextField(labelWithString: "Pasted!")
-        label.font = NSFont.systemFont(ofSize: 22, weight: .semibold)
-        label.alignment = .center
-        label.textColor = .labelColor
-        label.translatesAutoresizingMaskIntoConstraints = false
-        overlay.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: overlay.centerYAnchor)
-        ])
-        container.addSubview(overlay)
-        NSLayoutConstraint.activate([
-            overlay.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            overlay.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            overlay.widthAnchor.constraint(equalToConstant: overlaySize.width),
-            overlay.heightAnchor.constraint(equalToConstant: overlaySize.height)
-        ])
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.15
-            overlay.animator().alphaValue = 1
-        })
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.2
-                overlay.animator().alphaValue = 0
-            }, completionHandler: {
-                overlay.removeFromSuperview()
-                Task { @MainActor in
-                    self?.closeWindows()
-                }
-            })
-        }
     }
 
     private func rotateWheel(direction: RotationDirection) {
@@ -989,6 +957,22 @@ final class WindowController: NSObject, NSMenuItemValidation {
     }
 }
 
+private final class FloatingClipboardWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+private final class StatusOverlayWindow: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+private final class ClickThroughView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+}
+
 private extension NSView {
     var isDescendantOfScrollableEditor: Bool {
         var current: NSView? = self
@@ -1003,18 +987,9 @@ private extension NSView {
     }
 }
 
-private final class FloatingClipboardWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-}
-
-private final class StatusOverlayWindow: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-}
-
 extension WindowController {
-    @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    @objc
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem == clearItem {
             return !clipboard.history.isEmpty
         }

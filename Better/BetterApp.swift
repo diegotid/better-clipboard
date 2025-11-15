@@ -7,17 +7,26 @@
 
 import SwiftUI
 
+private final class MenuBarControllerBox {
+    var controller: WindowController?
+}
+
 @main
 struct BetterApp: App {
-    @StateObject private var clipboardController: ClipboardController
-    private let menuBarController: WindowController
+    @StateObject
+    private var clipboardController: ClipboardController
+    private let menuBarControllerBox = MenuBarControllerBox()
 
     init() {
         let clipboard = ClipboardController()
         _clipboardController = StateObject(wrappedValue: clipboard)
-        menuBarController = WindowController(clipboard: clipboard)
+        let controllerBox = menuBarControllerBox
+        Task { [controllerBox] in
+            let controller = await WindowController(clipboard: clipboard)
+            controllerBox.controller = controller
+            controller.presentInitialWindowsIfNeeded()
+        }
         NSApplication.shared.setActivationPolicy(.accessory)
-        menuBarController.presentInitialWindowsIfNeeded()
     }
 
     var body: some Scene {
