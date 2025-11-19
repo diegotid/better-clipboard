@@ -17,8 +17,9 @@ struct ClipboardEntry: View {
     @ObservedObject var languageContext: LanguageContext
 
     @State private var editedText: String
-    @State private var translatedTo: Locale.Language?
     @State private var textLanguage: Locale.Language?
+    @State private var translatedTo: Locale.Language?
+    @State private var translatingTo: Locale.Language?
     @State private var showingWritingToolsHelp = false
     
     @StateObject private var writingToolsController = WritingToolsController()
@@ -38,8 +39,8 @@ struct ClipboardEntry: View {
         self.onPaste = onPaste
         self.languageContext = languageContext
         _editedText = State(initialValue: entry.rewritten ?? entry.original)
-        _translatedTo = State(initialValue: entry.translatedTo)
         _textLanguage = State(initialValue: entry.translatedTo)
+        _translatedTo = State(initialValue: entry.translatedTo)
     }
         
     var formattedDate: String {
@@ -89,14 +90,22 @@ struct ClipboardEntry: View {
                 let language = item.element
                 let locale = Locale(identifier: language.maximalIdentifier)
                 Button(action: {
+                    translatingTo = language
                     NotificationCenter.default.post(name: .translationRequested,
                                                     object: language)
                 }) {
                     HStack {
                         HStack {
-                            Image(systemName: "command")
-                            Text("\(index + 1)")
-                                .padding(.leading, -5)
+                            if translatingTo == language {
+                                ProgressView()
+                                    .frame(width: 16, height: 16)
+                                    .scaleEffect(0.6)
+                                    .padding(.horizontal, 4)
+                            } else {
+                                Image(systemName: "command")
+                                Text("\(index + 1)")
+                                    .padding(.leading, -5)
+                            }
                         }
                         .padding(.leading, 6)
                         .padding(.vertical, 5)
