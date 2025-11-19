@@ -86,8 +86,8 @@ struct ClipboardEntry: View {
             }
             let languages = languageContext.languages.filter({ $0 != translatedTo })
             ForEach(Array(languages.enumerated()), id: \.element) { item in
-                let index = item.offset
                 let language = item.element
+                let index = languageContext.languages.firstIndex(of: language) ?? 0
                 let locale = Locale(identifier: language.maximalIdentifier)
                 Button(action: {
                     translatingTo = language
