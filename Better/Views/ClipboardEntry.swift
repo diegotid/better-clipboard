@@ -11,6 +11,7 @@ struct ClipboardEntry: View {
     var entry: CopiedText
     let isFrontMost: Bool
     let onChange: (UUID, String, Locale.Language?) -> Void
+    let onPaste: () -> Void
     
     @Environment(\.translator) private var translator: Translator?
     @ObservedObject var languageContext: LanguageContext
@@ -28,11 +29,13 @@ struct ClipboardEntry: View {
         entry: CopiedText,
         isFrontMost: Bool,
         onChange: @escaping (UUID, String, Locale.Language?) -> Void,
+        onPaste: @escaping () -> Void,
         languageContext: LanguageContext
     ) {
         self.entry = entry
         self.isFrontMost = isFrontMost
         self.onChange = onChange
+        self.onPaste = onPaste
         self.languageContext = languageContext
         _editedText = State(initialValue: entry.rewritten ?? entry.original)
         _translatedTo = State(initialValue: entry.translatedTo)
@@ -243,10 +246,7 @@ struct ClipboardEntry: View {
                     }
                     .keyboardShortcut("r", modifiers: .command)
                     .help("Rewrite this copy")
-                    Button(action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(editedText, forType: .string)
-                    }) {
+                    Button(action: onPaste) {
                         HStack {
                             Image(systemName: "return")
                                 .padding(4)

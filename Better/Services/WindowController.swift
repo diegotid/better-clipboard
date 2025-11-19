@@ -184,6 +184,29 @@ final class WindowController: NSObject, NSMenuItemValidation {
         hasPresentedInitialWindows = true
         showWindows(presentEmptyAlert: false, captureLastApp: false)
     }
+    
+    func handlePasteFrontEntry() {
+        guard let _ = windows.first,
+              let frontEntry = entries.first else {
+            closeWindows()
+            return
+        }
+        paste(frontEntry.rewritten ?? frontEntry.original)
+        if windows.count > 1 {
+            for (window, _) in windows.dropFirst() {
+                window.orderOut(nil)
+                window.close()
+            }
+            if let first = windows.first {
+                windows = [first]
+                entries = [frontEntry]
+            } else {
+                windows = []
+                entries = []
+            }
+        }
+        layoutWindows(animated: false)
+    }
 
     private func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
         if captureLastApp {
@@ -405,6 +428,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
                 onChange: { [weak self] id, text, language in
                     self?.handleEntryUpdate(id: id, text: text, language: language)
                 },
+                onPaste: handlePasteFrontEntry,
                 languageContext: languageContext
             ).environment(\.translator, translator)
         )
@@ -535,6 +559,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
                                                            text: text,
                                                            language: language)
                                },
+                               onPaste: handlePasteFrontEntry,
                                languageContext: languageContext)
                 .environment(\.translator, translator)
             )
@@ -872,29 +897,6 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
         }
         lastActiveApp = nil
-    }
-
-    private func handlePasteFrontEntry() {
-        guard let _ = windows.first,
-              let frontEntry = entries.first else {
-            closeWindows()
-            return
-        }
-        paste(frontEntry.original)
-        if windows.count > 1 {
-            for (window, _) in windows.dropFirst() {
-                window.orderOut(nil)
-                window.close()
-            }
-            if let first = windows.first {
-                windows = [first]
-                entries = [frontEntry]
-            } else {
-                windows = []
-                entries = []
-            }
-        }
-        layoutWindows(animated: false)
     }
 
     private func rotateWheel(direction: RotationDirection) {
