@@ -49,6 +49,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var showingWindows: Bool {
         windows.contains(where: { $0.window.isVisible })
     }
+    private func updateBaseHistory(_ history: [CopiedText]) {
+        baseHistory = history
+        entryIndexLookup = Dictionary(uniqueKeysWithValues: history.enumerated().map { ($0.element.id, $0.offset) })
+    }
     private var filteredEntries: [CopiedText] {
         let lowercasedSearch = searchText.lowercased()
         if lowercasedSearch.isEmpty {
@@ -220,8 +224,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
             return
         }
-        baseHistory = history
-        entryIndexLookup = Dictionary(uniqueKeysWithValues: history.enumerated().map { ($0.element.id, $0.offset) })
+        updateBaseHistory(history)
         entries = filteredEntries
         windows = filteredEntries.map { createWindow(for: $0) }
         layoutWindows(animated: false)
@@ -283,13 +286,32 @@ final class WindowController: NSObject, NSMenuItemValidation {
         clipboard.removeEntry(with: entry.id)
         animateRemoval(of: frontWindow) { [weak self] in
             guard let self else { return }
+            self.updateBaseHistory(self.clipboard.history)
             self.windows = self.windows.filter { $0.window != frontWindow }
-            if self.clipboard.history.isEmpty {
+            let filtered = self.filteredEntries
+            let visibleIDs = Set(filtered.map(\.id))
+            var retainedWindows: [(window: NSWindow, host: NSHostingController<AnyView>)] = []
+            var retainedEntries: [CopiedText] = []
+            for (pair, entry) in zip(self.windows, self.entries) {
+                if visibleIDs.contains(entry.id) {
+                    retainedWindows.append(pair)
+                    retainedEntries.append(entry)
+                } else {
+                    pair.window.orderOut(nil)
+                    pair.window.close()
+                }
+            }
+            let existingIDs = Set(retainedEntries.map(\.id))
+            let missingEntries = filtered.filter { !existingIDs.contains($0.id) }
+            for entry in missingEntries {
+                retainedWindows.append(self.createWindow(for: entry))
+                retainedEntries.append(entry)
+            }
+            self.windows = retainedWindows
+            self.entries = retainedEntries
+            if self.entries.isEmpty {
                 self.closeWindows()
             } else {
-                self.baseHistory = self.clipboard.history
-                self.entries = self.filteredEntries
-                self.windows = self.filteredEntries.map { self.createWindow(for: $0) }
                 self.layoutWindows(animated: true)
             }
         }
