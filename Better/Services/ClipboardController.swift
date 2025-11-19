@@ -41,11 +41,14 @@ final class ClipboardController: ObservableObject {
                     return
                 }
                 await MainActor.run {
+                    let existing = self.history.filter {
+                        $0.rewritten ?? $0.original == trimmed
+                    }.first
                     let entry = CopiedText(original: trimmed, date: Date())
                     let dedupedHistory = self.history.filter {
                         $0.rewritten ?? $0.original != trimmed
                     }
-                    let updated = [entry] + dedupedHistory
+                    let updated = [existing ?? entry] + dedupedHistory
                     self.history = Array(updated.prefix(self.capacity))
                 }
             }
