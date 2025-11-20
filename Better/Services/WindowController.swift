@@ -795,10 +795,28 @@ final class WindowController: NSObject, NSMenuItemValidation {
             switch event.keyCode {
             case UInt16(kVK_DownArrow):
                 self.rotateWheel(direction: .older)
-                return nil
+                return NSEvent.keyEvent(with: .keyDown, 
+                                      location: event.locationInWindow, 
+                                      modifierFlags: [], 
+                                      timestamp: event.timestamp, 
+                                      windowNumber: event.windowNumber, 
+                                      context: nil, 
+                                      characters: "", 
+                                      charactersIgnoringModifiers: "", 
+                                      isARepeat: false, 
+                                      keyCode: 0)
             case UInt16(kVK_UpArrow):
                 self.rotateWheel(direction: .newer)
-                return nil
+                return NSEvent.keyEvent(with: .keyDown, 
+                                      location: event.locationInWindow, 
+                                      modifierFlags: [], 
+                                      timestamp: event.timestamp, 
+                                      windowNumber: event.windowNumber, 
+                                      context: nil, 
+                                      characters: "", 
+                                      charactersIgnoringModifiers: "", 
+                                      isARepeat: false, 
+                                      keyCode: 0)
             case UInt16(kVK_Delete):
                 if event.modifierFlags.contains(.command) {
                     self.deleteFrontEntry()
