@@ -71,21 +71,7 @@ struct ClipboardEntry: View {
     @ViewBuilder
     private func LanguageBar() -> some View {
         HStack(spacing: 2) {
-            if let itemLanguage = translatedTo ?? textLanguage,
-               languageContext.languages.contains(itemLanguage) {
-                let locale = Locale(identifier: itemLanguage.maximalIdentifier)
-                HStack {
-                    LanguageFlag(locale: locale, diameter: 24)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .scaleEffect(0.9)
-                    Divider()
-                        .frame(height: 24)
-                        .foregroundStyle(.primary)
-                        .padding(.trailing, 5)
-                }
-            }
-            let languages = languageContext.languages.filter({ $0 != translatedTo })
-            ForEach(Array(languages.enumerated()), id: \.element) { item in
+            ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
                 let language = item.element
                 let index = languageContext.languages.firstIndex(of: language) ?? 0
                 let locale = Locale(identifier: language.maximalIdentifier)
@@ -96,7 +82,13 @@ struct ClipboardEntry: View {
                 }) {
                     HStack {
                         HStack {
-                            if translatingTo == language {
+                            if language == translatedTo ?? textLanguage {
+                                Image(systemName: "checkmark")
+                                    .bold()
+                                    .font(.system(size: 15))
+                                    .padding(.leading, 4)
+                                    .padding(.trailing, 1)
+                            } else if translatingTo == language {
                                 ProgressView()
                                     .frame(width: 16, height: 16)
                                     .scaleEffect(0.6)
@@ -192,6 +184,7 @@ struct ClipboardEntry: View {
                     if editedText != entry.original {
                         Button(action: {
                             editedText = entry.original
+                            translatingTo = nil
                             translatedTo = nil
                         }) {
                             HStack {
