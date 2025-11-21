@@ -21,6 +21,7 @@ struct ClipboardEntry: View {
     @State private var translatedTo: Locale.Language?
     @State private var translatingTo: Locale.Language?
     @State private var showingWritingToolsHelp = false
+    @State private var showingTranslationHelp = false
     
     @StateObject private var writingToolsController = WritingToolsController()
 
@@ -71,40 +72,19 @@ struct ClipboardEntry: View {
     @ViewBuilder
     private func LanguageBar() -> some View {
         HStack(spacing: 2) {
-            ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
-                let language = item.element
-                let index = languageContext.languages.firstIndex(of: language) ?? 0
-                let locale = Locale(identifier: language.maximalIdentifier)
+            if languageContext.languages.isEmpty {
                 Button(action: {
-                    translatingTo = language
-                    NotificationCenter.default.post(name: .translationRequested,
-                                                    object: language)
+                    showingTranslationHelp = true
                 }) {
                     HStack {
-                        HStack {
-                            if language == translatedTo ?? textLanguage {
-                                Image(systemName: "checkmark")
-                                    .bold()
-                                    .font(.system(size: 15))
-                                    .padding(.leading, 4)
-                                    .padding(.trailing, 1)
-                            } else if translatingTo == language {
-                                ProgressView()
-                                    .frame(width: 16, height: 16)
-                                    .scaleEffect(0.6)
-                                    .padding(.horizontal, 4)
-                            } else {
-                                Image(systemName: "command")
-                                Text("\(index + 1)")
-                                    .padding(.leading, -5)
-                            }
-                        }
-                        .padding(.leading, 6)
-                        .padding(.vertical, 5)
-                        .padding(.trailing, 0)
-                        LanguageFlag(locale: locale, diameter: 24)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .padding(0)
+                        Image(systemName: "translate")
+                            .font(.system(size: 15))
+                            .padding(.leading, 9)
+                            .padding(.bottom, 4)
+                            .padding(.top, 6)
+                        Text("Translation")
+                            .font(.body)
+                            .padding(.trailing, 12)
                     }
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -113,10 +93,129 @@ struct ClipboardEntry: View {
                     .scaleEffect(0.9)
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut(KeyEquivalent(Character("\((index % 9) + 1)")), modifiers: .command)
-                .help("Translate into \(locale.description)")
+                .help("Add translation languages")
+                .popover(isPresented: $showingTranslationHelp, arrowEdge: .top) {
+                    TranslationHelpPopover()
+                        .background(WindowLevelModifier())
+                }
+            } else {
+                ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
+                    LanguageButton(
+                        language: item.element,
+                        index: languageContext.languages.firstIndex(of: item.element) ?? 0,
+                        translatedTo: translatedTo,
+                        textLanguage: textLanguage,
+                        translatingTo: $translatingTo
+                    )
+                }
             }
         }
+    }
+    
+    @ViewBuilder
+    private func TranslationHelpPopover() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Add Translation Languages")
+                .font(.headline)
+            Text("To use translation features:")
+                .font(.subheadline)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    Text("1.")
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Text("Open System Settings")
+                }
+                HStack(alignment: .top) {
+                    Text("2.")
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Text("Go to General → Language & Region")
+                }
+                HStack(alignment: .top) {
+                    Text("3.")
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Text("Click \"Translation Languages...\"")
+                }
+                HStack(alignment: .top) {
+                    Text("4.")
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Text("Download the languages you want to translate from and to")
+                }
+            }
+            .font(.callout)
+            HStack {
+                Spacer()
+                Button("Open System Settings") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .controlSize(.small)
+                Button(action: {
+                    languageContext.refreshLanguages()
+                    showingTranslationHelp = false
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(16)
+        .frame(width: 300)
+    }
+    
+    @ViewBuilder
+    private func LanguageButton(
+        language: Locale.Language,
+        index: Int,
+        translatedTo: Locale.Language?,
+        textLanguage: Locale.Language?,
+        translatingTo: Binding<Locale.Language?>
+    ) -> some View {
+        let locale = Locale(identifier: language.maximalIdentifier)
+        Button(action: {
+            translatingTo.wrappedValue = language
+            NotificationCenter.default.post(name: .translationRequested,
+                                            object: language)
+        }) {
+            HStack {
+                HStack {
+                    if language == translatedTo ?? textLanguage {
+                        Image(systemName: "checkmark")
+                            .bold()
+                            .font(.system(size: 15))
+                            .padding(.leading, 4)
+                            .padding(.trailing, 1)
+                    } else if translatingTo.wrappedValue == language {
+                        ProgressView()
+                            .frame(width: 16, height: 16)
+                            .scaleEffect(0.6)
+                            .padding(.horizontal, 4)
+                    } else {
+                        Image(systemName: "command")
+                        Text("\(index + 1)")
+                            .padding(.leading, -5)
+                    }
+                }
+                .padding(.leading, 6)
+                .padding(.vertical, 5)
+                .padding(.trailing, 0)
+                LanguageFlag(locale: locale, diameter: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .padding(0)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(.secondary.opacity(0.3))
+            )
+            .scaleEffect(0.9)
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(KeyEquivalent(Character("\((index % 9) + 1)")), modifiers: .command)
+        .help("Translate into \(locale.description)")
     }
 
     var body: some View {
@@ -317,6 +416,26 @@ struct ClipboardEntry: View {
         .sheet(isPresented: $showingWritingToolsHelp) {
             AIHelpSheet {
                 showingWritingToolsHelp = false
+            }
+        }
+    }
+}
+
+private struct WindowLevelModifier: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                window.level = .modalPanel
+            }
+        }
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let window = nsView.window {
+                window.level = .modalPanel
             }
         }
     }

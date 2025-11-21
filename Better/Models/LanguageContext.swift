@@ -25,4 +25,22 @@ final class LanguageContext: ObservableObject {
             }
         }
     }
+    
+    func refreshLanguages() {
+        let availability = LanguageAvailability()
+        Task {
+            let supported = await availability.supportedLanguages
+            var newLanguages: [Locale.Language] = []
+            for language in supported {
+                let status = await availability.status(from: Locale.current.language,
+                                                       to: language)
+                if status == .installed && language != Locale.current.language {
+                    newLanguages.append(language)
+                }
+            }
+            await MainActor.run {
+                self.languages = newLanguages
+            }
+        }
+    }
 }
