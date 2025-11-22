@@ -67,7 +67,7 @@ actor Translator {
         guard let targetLanguage else {
             return text
         }
-        let sourceLanguage = Locale.Language(identifier: Locale.preferredLanguages.first ?? Locale.current.identifier)
+        let sourceLanguage = detectLanguage(for: text) ?? Locale.current.language
         let key = SessionKey(source: sourceLanguage, target: targetLanguage)
         let session = try await sessionForTranslation(for: key)
         do {
