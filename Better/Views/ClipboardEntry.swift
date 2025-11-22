@@ -20,6 +20,7 @@ struct ClipboardEntry: View {
     @State private var textLanguage: Locale.Language?
     @State private var translatedTo: Locale.Language?
     @State private var translatingTo: Locale.Language?
+    @State private var isTranslationAvailable = false
     @State private var showingWritingToolsHelp = false
     @State private var showingTranslationHelp = false
     
@@ -72,7 +73,7 @@ struct ClipboardEntry: View {
     @ViewBuilder
     private func LanguageBar() -> some View {
         HStack(spacing: 2) {
-            if languageContext.languages.isEmpty {
+            if languageContext.languages.isEmpty || !isTranslationAvailable {
                 Button(action: {
                     showingTranslationHelp = true
                 }) {
@@ -82,9 +83,11 @@ struct ClipboardEntry: View {
                             .padding(.leading, 9)
                             .padding(.bottom, 4)
                             .padding(.top, 6)
-                        Text("Translation")
+                        Text(languageContext.languages.isEmpty ? "Setup translations" : "Language not supported")
                             .font(.body)
-                            .padding(.trailing, 12)
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 15))
+                            .padding(.trailing, 9)
                     }
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -102,10 +105,7 @@ struct ClipboardEntry: View {
                 ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
                     LanguageButton(
                         language: item.element,
-                        index: languageContext.languages.firstIndex(of: item.element) ?? 0,
-                        translatedTo: translatedTo,
-                        textLanguage: textLanguage,
-                        translatingTo: $translatingTo
+                        index: languageContext.languages.firstIndex(of: item.element) ?? 0
                     )
                 }
             }
@@ -170,26 +170,25 @@ struct ClipboardEntry: View {
     @ViewBuilder
     private func LanguageButton(
         language: Locale.Language,
-        index: Int,
-        translatedTo: Locale.Language?,
-        textLanguage: Locale.Language?,
-        translatingTo: Binding<Locale.Language?>
+        index: Int
     ) -> some View {
         let locale = Locale(identifier: language.maximalIdentifier)
+        let lang = translatedTo ?? textLanguage
+        let isCurrent = language.languageCode == lang?.languageCode
         Button(action: {
-            translatingTo.wrappedValue = language
+            $translatingTo.wrappedValue = language
             NotificationCenter.default.post(name: .translationRequested,
                                             object: language)
         }) {
             HStack {
                 HStack {
-                    if language == translatedTo ?? textLanguage {
+                    if isCurrent {
                         Image(systemName: "checkmark")
                             .bold()
                             .font(.system(size: 15))
                             .padding(.leading, 4)
                             .padding(.trailing, 1)
-                    } else if translatingTo.wrappedValue == language {
+                    } else if $translatingTo.wrappedValue == language {
                         ProgressView()
                             .frame(width: 16, height: 16)
                             .scaleEffect(0.6)
@@ -216,6 +215,7 @@ struct ClipboardEntry: View {
         .buttonStyle(.plain)
         .keyboardShortcut(KeyEquivalent(Character("\((index % 9) + 1)")), modifiers: .command)
         .help("Translate into \(locale.description)")
+        .disabled(isCurrent)
     }
 
     var body: some View {
@@ -384,8 +384,10 @@ struct ClipboardEntry: View {
             Task {
                 guard let translator else { return }
                 let language = await translator.detectLanguage(for: editedText)
+                let isAvailable = await translator.isAvailable(for: editedText)
                 await MainActor.run {
                     self.textLanguage = language
+                    self.isTranslationAvailable = isAvailable
                 }
             }
         }

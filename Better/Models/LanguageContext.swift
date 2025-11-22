@@ -10,27 +10,17 @@ import Foundation
 import Translation
 
 final class LanguageContext: ObservableObject {
-    @Published var languages: [Locale.Language] = []
+    @Published var languages: [Locale.Language] = [Locale.current.language]
     
     init() {
-        let availability = LanguageAvailability()
-        Task {
-            let supported = await availability.supportedLanguages
-            for language in supported {
-                let status = await availability.status(from: Locale.current.language,
-                                                       to: language)
-                if status == .installed && language != Locale.current.language {
-                    languages.append(language)
-                }
-            }
-        }
+        refreshLanguages()
     }
     
     func refreshLanguages() {
         let availability = LanguageAvailability()
         Task {
             let supported = await availability.supportedLanguages
-            var newLanguages: [Locale.Language] = []
+            var newLanguages: [Locale.Language] = [Locale.current.language]
             for language in supported {
                 let status = await availability.status(from: Locale.current.language,
                                                        to: language)

@@ -87,6 +87,14 @@ actor Translator {
         }
         return Locale.Language(identifier: dominant.rawValue)
     }
+    
+    func isAvailable(for text: String) async -> Bool {
+        do {
+            return try await availability.status(for: text, to: nil) == .installed
+        } catch {
+            return false
+        }
+    }
 
     private func sessionForTranslation(for key: SessionKey) async throws -> TranslationSession {
         if let cached = sessions[key] {
