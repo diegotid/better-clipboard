@@ -11,6 +11,9 @@ struct WritingToolsEditor: NSViewRepresentable {
     @Binding var text: String
     @ObservedObject var controller: WritingToolsController
     
+    let codeLanguage: ProgrammingLanguage?
+    private var isCode: Bool { codeLanguage != nil }
+    
     private let cornerRadius: CGFloat = 12
 
     func makeCoordinator() -> Coordinator {
@@ -41,7 +44,11 @@ struct WritingToolsEditor: NSViewRepresentable {
         textView.isRichText = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
-        textView.font = .preferredFont(forTextStyle: .body)
+        if isCode {
+            CodeDetector.configureCodeStyling(for: textView, language: codeLanguage)
+        } else {
+            textView.font = .preferredFont(forTextStyle: .body)
+        }
         textView.performProgrammaticEdit {
             textView.string = text
         }
@@ -58,6 +65,9 @@ struct WritingToolsEditor: NSViewRepresentable {
         if let textView = nsView.documentView as? ShortcutAwareTextView, textView.string != text {
             textView.performProgrammaticEdit {
                 textView.string = text
+            }
+            if isCode {
+                CodeDetector.applySyntaxHighlighting(to: textView, language: codeLanguage)
             }
         }
         nsView.wantsLayer = true

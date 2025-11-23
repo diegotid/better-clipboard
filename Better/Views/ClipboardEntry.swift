@@ -15,6 +15,7 @@ struct ClipboardEntry: View {
     
     @Environment(\.translator) private var translator: Translator?
     @ObservedObject var languageContext: LanguageContext
+    @StateObject private var writingToolsController = WritingToolsController()
 
     @State private var editedText: String
     @State private var textLanguage: Locale.Language?
@@ -23,9 +24,9 @@ struct ClipboardEntry: View {
     @State private var isTranslationAvailable = false
     @State private var showingWritingToolsHelp = false
     @State private var showingTranslationHelp = false
-    
-    @StateObject private var writingToolsController = WritingToolsController()
+    @State private var codeLanguage: ProgrammingLanguage? = nil
 
+    private var isCode: Bool { codeLanguage != nil }
     private let cornerRadius: CGFloat = 12
 
     init(
@@ -73,7 +74,27 @@ struct ClipboardEntry: View {
     @ViewBuilder
     private func LanguageBar() -> some View {
         HStack(spacing: 2) {
-            if languageContext.languages.isEmpty || !isTranslationAvailable {
+            if isCode {
+                Button(action: {}) {
+                    HStack {
+                        Image(systemName: "curlybraces")
+                            .bold()
+                            .monospaced()
+                            .foregroundStyle(.white)
+                            .padding(.leading, 4)
+                        Text(codeLanguage?.name ?? "Code")
+                            .foregroundStyle(codeLanguage?.color?.adaptiveForAppearance() ?? .white)
+                            .padding(.trailing, 8)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.secondary.opacity(0.3))
+                    )
+                }
+                .buttonStyle(.plain)
+            } else if languageContext.languages.isEmpty || !isTranslationAvailable {
                 Button(action: {
                     showingTranslationHelp = true
                 }) {
@@ -83,8 +104,6 @@ struct ClipboardEntry: View {
                             .padding(.leading, 9)
                             .padding(.bottom, 4)
                             .padding(.top, 6)
-                        Text(languageContext.languages.isEmpty ? "Setup translations" : "Language not supported")
-                            .font(.body)
                         Image(systemName: "info.circle")
                             .font(.system(size: 15))
                             .padding(.trailing, 9)
@@ -98,8 +117,11 @@ struct ClipboardEntry: View {
                 .buttonStyle(.plain)
                 .help("Add translation languages")
                 .popover(isPresented: $showingTranslationHelp, arrowEdge: .top) {
-                    TranslationHelpPopover()
-                        .background(WindowLevelModifier())
+                    TranslationHelpPopover(onRefresh: {
+                        languageContext.refreshLanguages()
+                        showingTranslationHelp = false
+                    })
+                    .background(WindowLevelModifier())
                 }
             } else {
                 ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
@@ -110,61 +132,6 @@ struct ClipboardEntry: View {
                 }
             }
         }
-    }
-    
-    @ViewBuilder
-    private func TranslationHelpPopover() -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Add Translation Languages")
-                .font(.headline)
-            Text("To use translation features:")
-                .font(.subheadline)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top) {
-                    Text("1.")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Text("Open System Settings")
-                }
-                HStack(alignment: .top) {
-                    Text("2.")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Text("Go to General → Language & Region")
-                }
-                HStack(alignment: .top) {
-                    Text("3.")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Text("Click \"Translation Languages...\"")
-                }
-                HStack(alignment: .top) {
-                    Text("4.")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Text("Download the languages you want to translate from and to")
-                }
-            }
-            .font(.callout)
-            HStack {
-                Spacer()
-                Button("Open System Settings") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .controlSize(.small)
-                Button(action: {
-                    languageContext.refreshLanguages()
-                    showingTranslationHelp = false
-                }) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .controlSize(.small)
-            }
-        }
-        .padding(16)
-        .frame(width: 300)
     }
     
     @ViewBuilder
@@ -222,7 +189,7 @@ struct ClipboardEntry: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Copied \(formattedDate)")
-                    .font(.caption2)
+                    .font(.subheadline)
                 Spacer()
                 if isFrontMost {
                     LanguageBar()
@@ -232,10 +199,14 @@ struct ClipboardEntry: View {
             }
             ZStack(alignment: .topLeading) {
                 WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
-                WritingToolsEditor(text: $editedText, controller: writingToolsController)
-                    .onChange(of: editedText) {
-                        onChange(entry.id, editedText, translatedTo)
-                    }
+                WritingToolsEditor(
+                    text: $editedText,
+                    controller: writingToolsController,
+                    codeLanguage: codeLanguage
+                )
+                .onChange(of: editedText) {
+                    onChange(entry.id, editedText, translatedTo)
+                }
             }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -313,40 +284,42 @@ struct ClipboardEntry: View {
                         .keyboardShortcut("u", modifiers: .command)
                         .help("Back to the original copy")
                     }
-                    Button(action: {
-                        writingToolsController.showWritingToolsPanel()
-                    }) {
-                        HStack {
+                    if !isCode {
+                        Button(action: {
+                            writingToolsController.showWritingToolsPanel()
+                        }) {
                             HStack {
-                                Image(systemName: "command")
-                                Text("R")
-                                    .font(.callout)
-                                    .padding(.leading, -5)
-                                    .padding(.trailing, 1)
-                                    .padding(.vertical, -3)
+                                HStack {
+                                    Image(systemName: "command")
+                                    Text("R")
+                                        .font(.callout)
+                                        .padding(.leading, -5)
+                                        .padding(.trailing, 1)
+                                        .padding(.vertical, -3)
+                                }
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(.ultraThickMaterial)
+                                )
+                                if entry.original == editedText {
+                                    Text("Rewrite")
+                                        .font(.body)
+                                }
+                                Image(systemName: "sparkles")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                                    .padding(.trailing, 3)
                             }
-                            .padding(4)
+                            .padding(3)
                             .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(.ultraThickMaterial)
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.6))
                             )
-                            if entry.original == editedText {
-                                Text("Rewrite")
-                                    .font(.body)
-                            }
-                            Image(systemName: "sparkles")
-                                .font(.subheadline)
-                                .foregroundStyle(.primary)
-                                .padding(.trailing, 3)
                         }
-                        .padding(3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(.secondary.opacity(0.6))
-                        )
+                        .keyboardShortcut("r", modifiers: .command)
+                        .help("Rewrite this copy")
                     }
-                    .keyboardShortcut("r", modifiers: .command)
-                    .help("Rewrite this copy")
                     Button(action: onPaste) {
                         HStack {
                             Image(systemName: "return")
@@ -385,9 +358,11 @@ struct ClipboardEntry: View {
                 guard let translator else { return }
                 let language = await translator.detectLanguage(for: editedText)
                 let isAvailable = await translator.isAvailable(for: editedText)
+                let codeLanguage = CodeDetector.detectCode(in: entry.original)
                 await MainActor.run {
                     self.textLanguage = language
                     self.isTranslationAvailable = isAvailable
+                    self.codeLanguage = codeLanguage
                 }
             }
         }
@@ -461,5 +436,67 @@ private extension ClipboardEntry {
                 NSLog("Translation failed: \(error)")
             }
         }
+    }
+}
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+    
+    var components: (red: Double, green: Double, blue: Double, opacity: Double)? {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var opacity: CGFloat = 0
+        guard let rgbColor = NSColor(self).usingColorSpace(.sRGB) else {
+            return nil
+        }
+        rgbColor.getRed(&red, green: &green, blue: &blue, alpha: &opacity)
+        return (Double(red), Double(green), Double(blue), Double(opacity))
+    }
+    
+    func adaptiveForAppearance() -> Color {
+        guard let comps = components else {
+            return self
+        }
+        return Color(
+            light: Color(
+                red: comps.red * 0.7,
+                green: comps.green * 0.7,
+                blue: comps.blue * 0.7
+            ),
+            dark: self
+        )
+    }
+    
+    init(light: Color, dark: Color) {
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua {
+                return NSColor(dark)
+            } else {
+                return NSColor(light)
+            }
+        })
     }
 }
