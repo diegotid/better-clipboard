@@ -98,7 +98,7 @@ struct CodeDetector {
         textView.isContinuousSpellCheckingEnabled = false
         textView.isGrammarCheckingEnabled = false
         textView.textColor = .textColor
-        textView.insertionPointColor = .textColor
+        textView.insertionPointColor = .clear
         textView.isAutomaticTextCompletionEnabled = false
         textView.smartInsertDeleteEnabled = false
         let reformattedText = reformatIndentation(textView.string)

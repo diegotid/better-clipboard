@@ -44,7 +44,6 @@ struct WritingToolsEditor: NSViewRepresentable {
         textView.isRichText = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
-        textView.isEditable = false
         textView.isSelectable = true
         textView.insertionPointColor = .clear
         textView.performProgrammaticEdit {
@@ -72,6 +71,7 @@ struct WritingToolsEditor: NSViewRepresentable {
                 textView.backgroundColor = NSColor.white
                 textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
                 textView.drawsBackground = true
+                textView.insertionPointColor = .clear
                 textView.isHorizontallyResizable = true
                 textView.isVerticallyResizable = true
                 textView.textContainer?.widthTracksTextView = false
