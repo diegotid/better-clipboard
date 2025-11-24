@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ClipboardEntry: View {
-    var entry: CopiedText
+    var entry: CopiedContent
     let isFrontMost: Bool
     let onChange: (UUID, String, Locale.Language?) -> Void
     let onPaste: () -> Void
@@ -29,10 +29,11 @@ struct ClipboardEntry: View {
     @State private var showCopyConfirmation = false
 
     private var isCode: Bool { codeLanguage != nil }
+    private var isImage: Bool { entry.contentType == .image }
     private let cornerRadius: CGFloat = 12
 
     init(
-        entry: CopiedText,
+        entry: CopiedContent,
         isFrontMost: Bool,
         onChange: @escaping (UUID, String, Locale.Language?) -> Void,
         onPaste: @escaping () -> Void,
@@ -78,7 +79,25 @@ struct ClipboardEntry: View {
     @ViewBuilder
     private func LanguageBar() -> some View {
         HStack(spacing: 2) {
-            if isCode {
+            if isImage {
+                Button(action: {}) {
+                    HStack {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.white)
+                            .padding(.leading, 4)
+                        Text("Image")
+                            .foregroundStyle(.blue)
+                            .padding(.trailing, 8)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.secondary.opacity(0.3))
+                    )
+                }
+                .buttonStyle(.plain)
+            } else if isCode {
                 Button(action: {}) {
                     HStack {
                         Image(systemName: "curlybraces")
@@ -203,13 +222,21 @@ struct ClipboardEntry: View {
             }
             ZStack(alignment: .topLeading) {
                 WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
-                WritingToolsEditor(
-                    text: $editedText,
-                    controller: writingToolsController,
-                    codeLanguage: codeLanguage
-                )
-                .onChange(of: editedText) {
-                    onChange(entry.id, editedText, translatedTo)
+                if isImage, let imageData = entry.imageData, let nsImage = NSImage(data: imageData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: 400)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                } else {
+                    WritingToolsEditor(
+                        text: $editedText,
+                        controller: writingToolsController,
+                        codeLanguage: codeLanguage
+                    )
+                    .onChange(of: editedText) {
+                        onChange(entry.id, editedText, translatedTo)
+                    }
                 }
             }
             .overlay(
@@ -255,7 +282,7 @@ struct ClipboardEntry: View {
                     .keyboardShortcut(.delete, modifiers: .command)
                     .help("Delete this copy")
                     Spacer()
-                    if !isCode && editedText != entry.original {
+                    if !isImage && !isCode && editedText != entry.original {
                         Button(action: {
                             editedText = entry.original
                             translatingTo = nil
@@ -288,7 +315,7 @@ struct ClipboardEntry: View {
                         .keyboardShortcut("u", modifiers: .command)
                         .help("Back to the original copy")
                     }
-                    if !isCode && entry.original == editedText {
+                    if !isImage && !isCode && entry.original == editedText {
                         Button(action: {
                             writingToolsController.showWritingToolsPanel()
                         }) {
@@ -322,7 +349,7 @@ struct ClipboardEntry: View {
                         .keyboardShortcut("r", modifiers: .command)
                         .help("Rewrite this copy")
                     }
-                    if isCode || entry.original != editedText {
+                    if !isImage && (isCode || entry.original != editedText) {
                         Button(action: {
                             onCopy(editedText)
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -369,6 +396,58 @@ struct ClipboardEntry: View {
                         }
                         .keyboardShortcut("c", modifiers: .command)
                         .help("Copy rewritten text to the clipboard")
+                    }
+                    if isImage {
+                        Button(action: {
+                            if let imageData = entry.imageData {
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setData(imageData, forType: .tiff)
+                            }
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showCopyConfirmation = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    showCopyConfirmation = false
+                                }
+                            }
+                        }) {
+                            HStack {
+                                HStack {
+                                    Image(systemName: "command")
+                                    Text("C")
+                                        .font(.callout)
+                                        .padding(.leading, -5)
+                                        .padding(.trailing, 1)
+                                        .padding(.vertical, -3)
+                                }
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(.ultraThickMaterial)
+                                )
+                                if showCopyConfirmation {
+                                    Image(systemName: "checkmark")
+                                        .font(.subheadline)
+                                        .padding(.trailing, 5)
+                                        .transition(.scale.combined(with: .opacity))
+                                } else {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.primary)
+                                        .padding(.trailing, 3)
+                                        .transition(.scale.combined(with: .opacity))
+                                }
+                            }
+                            .padding(3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.6))
+                            )
+                        }
+                        .keyboardShortcut("c", modifiers: .command)
+                        .help("Copy image to the clipboard")
                     }
                     Button(action: onPaste) {
                         HStack {

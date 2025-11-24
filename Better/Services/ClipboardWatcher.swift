@@ -7,11 +7,16 @@
 
 import AppKit
 
+enum ClipboardContent {
+    case text(String)
+    case image(Data)
+}
+
 final class ClipboardWatcher {
     private var lastChange = NSPasteboard.general.changeCount
     private var timer: Timer?
 
-    func start(onChange: @escaping (String) -> Void) {
+    func start(onChange: @escaping (ClipboardContent) -> Void) {
         stop()
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { _ in
             let board = NSPasteboard.general
@@ -19,8 +24,10 @@ final class ClipboardWatcher {
                 return
             }
             self.lastChange = board.changeCount
-            if let str = board.string(forType: .string) {
-                onChange(str)
+            if let imageData = board.data(forType: .tiff) ?? board.data(forType: .png) {
+                onChange(.image(imageData))
+            } else if let str = board.string(forType: .string) {
+                onChange(.text(str))
             }
         }
     }

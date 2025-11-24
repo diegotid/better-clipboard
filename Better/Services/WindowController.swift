@@ -29,8 +29,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private let clipboard: ClipboardController
     private let translator: Translator
     private var windows: [(window: NSWindow, host: NSHostingController<AnyView>)] = []
-    private var entries: [CopiedText] = []
-    private var baseHistory: [CopiedText] = []
+    private var entries: [CopiedContent] = []
+    private var baseHistory: [CopiedContent] = []
     private var entryIndexLookup: [UUID: Int] = [:]
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
@@ -49,11 +49,11 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var showingWindows: Bool {
         windows.contains(where: { $0.window.isVisible })
     }
-    private func updateBaseHistory(_ history: [CopiedText]) {
+    private func updateBaseHistory(_ history: [CopiedContent]) {
         baseHistory = history
         entryIndexLookup = Dictionary(uniqueKeysWithValues: history.enumerated().map { ($0.element.id, $0.offset) })
     }
-    private var filteredEntries: [CopiedText] {
+    private var filteredEntries: [CopiedContent] {
         let lowercasedSearch = searchText.lowercased()
         if lowercasedSearch.isEmpty {
             return baseHistory
@@ -279,7 +279,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         self.deleteFrontEntry(frontEntry)
     }
 
-    private func deleteFrontEntry(_ entry: CopiedText) {
+    private func deleteFrontEntry(_ entry: CopiedContent) {
         guard !windows.isEmpty else {
             clipboard.removeEntry(with: entry.id)
             return
@@ -295,7 +295,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
             let filtered = self.filteredEntries
             let visibleIDs = Set(filtered.map(\.id))
             var retainedWindows: [(window: NSWindow, host: NSHostingController<AnyView>)] = []
-            var retainedEntries: [CopiedText] = []
+            var retainedEntries: [CopiedContent] = []
             for (pair, entry) in zip(self.windows, self.entries) {
                 if visibleIDs.contains(entry.id) {
                     retainedWindows.append(pair)
@@ -446,7 +446,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         clipboard.saveHistory()
     }
 
-    private func createWindow(for entry: CopiedText) -> (NSWindow, NSHostingController<AnyView>) {
+    private func createWindow(for entry: CopiedContent) -> (NSWindow, NSHostingController<AnyView>) {
         let entryView = AnyView(
             ClipboardEntry(
                 entry: entry,
@@ -546,8 +546,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         let screenFrame = screen.visibleFrame
         let centerPoint = NSPoint(x: screenFrame.midX, y: screenFrame.midY)
-        var belowStack: [(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedText, baseIndex: Int)] = []
-        var aboveStack: [(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedText, baseIndex: Int)] = []
+        var belowStack: [(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedContent, baseIndex: Int)] = []
+        var aboveStack: [(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedContent, baseIndex: Int)] = []
         if windows.count > 1 {
             for index in 1..<windows.count {
                 let (window, host) = windows[index]
@@ -564,10 +564,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         belowStack.sort { $0.baseIndex < $1.baseIndex }
         aboveStack.sort { $0.baseIndex > $1.baseIndex }
-        var updates: [(window: NSWindow, host: NSHostingController<AnyView>, frame: NSRect, alpha: CGFloat, entry: CopiedText, isFront: Bool)] = []
+        var updates: [(window: NSWindow, host: NSHostingController<AnyView>, frame: NSRect, alpha: CGFloat, entry: CopiedContent, isFront: Bool)] = []
         var frontFrame: NSRect?
         var frontWindowReference: NSWindow?
-        func recordUpdate(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedText, depth: Int, offsetY: CGFloat, isFront: Bool) {
+        func recordUpdate(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedContent, depth: Int, offsetY: CGFloat, isFront: Bool) {
             let scale = max(1.0 - CGFloat(depth) * scaleStep, 0.3)
             let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * opacityStep
             let windowSize = NSSize(width: windowSize.width * scale, height: windowSize.height * scale)

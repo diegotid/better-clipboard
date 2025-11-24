@@ -10,7 +10,7 @@ import Foundation
 
 @MainActor
 final class ClipboardController: ObservableObject {
-    @Published var history: [CopiedText] = [] {
+    @Published var history: [CopiedContent] = [] {
         didSet {
             saveHistory()
         }
@@ -31,25 +31,33 @@ final class ClipboardController: ObservableObject {
     }
 
     func start() {
-        watcher.start { [weak self] text in
+        watcher.start { [weak self] content in
             guard let self = self else {
                 return
             }
             Task {
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else {
-                    return
-                }
                 await MainActor.run {
-                    let existing = self.history.filter {
-                        $0.rewritten ?? $0.original == trimmed
-                    }.first
-                    let entry = CopiedText(original: trimmed, date: Date())
-                    let dedupedHistory = self.history.filter {
-                        $0.rewritten ?? $0.original != trimmed
+                    switch content {
+                    case .text(let text):
+                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else {
+                            return
+                        }
+                        let existing = self.history.filter {
+                            $0.contentType == .text && ($0.rewritten ?? $0.original) == trimmed
+                        }.first
+                        let entry = CopiedContent(original: trimmed, date: Date(), contentType: .text)
+                        let dedupedHistory = self.history.filter {
+                            $0.contentType != .text || ($0.rewritten ?? $0.original) != trimmed
+                        }
+                        let updated = [existing ?? entry] + dedupedHistory
+                        self.history = Array(updated.prefix(self.capacity))
+                    case .image(let imageData):
+                        let imageName = "Image \(Date().formatted(date: .omitted, time: .shortened))"
+                        let entry = CopiedContent(original: imageName, date: Date(), contentType: .image, imageData: imageData)
+                        let updated = [entry] + self.history
+                        self.history = Array(updated.prefix(self.capacity))
                     }
-                    let updated = [existing ?? entry] + dedupedHistory
-                    self.history = Array(updated.prefix(self.capacity))
                 }
             }
         }
@@ -70,7 +78,7 @@ final class ClipboardController: ObservableObject {
         }
         do {
             let data = try Data(contentsOf: historyFileURL)
-            let loaded = try JSONDecoder().decode([CopiedText].self, from: data)
+            let loaded = try JSONDecoder().decode([CopiedContent].self, from: data)
             history = Array(loaded.prefix(capacity))
         } catch {
             print("Failed to load clipboard history: \(error)")
