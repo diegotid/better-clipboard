@@ -26,6 +26,7 @@ struct ClipboardEntry: View {
     @State private var showingWritingToolsHelp = false
     @State private var showingTranslationHelp = false
     @State private var codeLanguage: ProgrammingLanguage? = nil
+    @State private var showCopyConfirmation = false
 
     private var isCode: Bool { codeLanguage != nil }
     private let cornerRadius: CGFloat = 12
@@ -324,6 +325,14 @@ struct ClipboardEntry: View {
                     if isCode || entry.original != editedText {
                         Button(action: {
                             onCopy(editedText)
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showCopyConfirmation = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    showCopyConfirmation = false
+                                }
+                            }
                         }) {
                             HStack {
                                 HStack {
@@ -339,10 +348,18 @@ struct ClipboardEntry: View {
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                                         .fill(.ultraThickMaterial)
                                 )
-                                Image(systemName: "document.on.document")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.primary)
-                                    .padding(.trailing, 3)
+                                if showCopyConfirmation {
+                                    Image(systemName: "checkmark")
+                                        .font(.subheadline)
+                                        .padding(.trailing, 5)
+                                        .transition(.scale.combined(with: .opacity))
+                                } else {
+                                    Image(systemName: "document.on.document")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.primary)
+                                        .padding(.trailing, 3)
+                                        .transition(.scale.combined(with: .opacity))
+                                }
                             }
                             .padding(3)
                             .background(
