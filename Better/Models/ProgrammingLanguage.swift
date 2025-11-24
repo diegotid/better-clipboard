@@ -18,6 +18,15 @@ struct CodePattern {
 }
 
 let codePatterns: [CodePattern] = [
+    // Comments (check first to avoid false matches)
+    CodePattern(
+        pattern: #"^[\s]*//[\s\S]*$"#,
+        language: ProgrammingLanguage(name: "Code", color: Color(hex: "7F8C8D"))
+    ),
+    CodePattern(
+        pattern: #"^[\s]*/\*[\s\S]*\*/$"#,
+        language: ProgrammingLanguage(name: "Code", color: Color(hex: "7F8C8D"))
+    ),
     // Swift
     CodePattern(
         pattern: #"import\s+(SwiftUI|UIKit|Foundation|Combine)"#,
@@ -65,6 +74,49 @@ let codePatterns: [CodePattern] = [
         pattern: #"(require|module\.exports|export\s+(default|const|function))"#,
         language: ProgrammingLanguage(name: "JavaScript", color: Color(hex: "F7C500"))
     ),
+    // C/C++ (check before Python to avoid false matches with range-based for loops)
+    CodePattern(
+        pattern: #"#include\s*<[\w\.]+>|#define\s+\w+"#,
+        language: ProgrammingLanguage(name: "C/C++", color: Color(hex: "5DADE2"))
+    ),
+    CodePattern(
+        pattern: #"(std::|using\s+namespace|template\s*<|nullptr)"#,
+        language: ProgrammingLanguage(name: "C++", color: Color(hex: "5DADE2"))
+    ),
+    CodePattern(
+        pattern: #"(printf|scanf|malloc|free)\s*\("#,
+        language: ProgrammingLanguage(name: "C", color: Color(hex: "85C1E9"))
+    ),
+    CodePattern(
+        pattern: #"(std::cout|std::cin|std::endl|std::vector|std::string)"#,
+        language: ProgrammingLanguage(name: "C++", color: Color(hex: "5DADE2"))
+    ),
+    // PHP (check before Shell because echo and $ are ambiguous)
+    CodePattern(
+        pattern: #"<\?php|\$\w+\s*=|function\s+\w+\([^)]*\)\s*\{|foreach\s*\([^)]+\)"#,
+        language: ProgrammingLanguage(name: "PHP", color: Color(hex: "9B7FC5"))
+    ),
+    CodePattern(
+        pattern: #"(public|private|protected)\s+function|\$this->|echo\s+[^;]+;"#,
+        language: ProgrammingLanguage(name: "PHP", color: Color(hex: "9B7FC5"))
+    ),
+    // Shell/Bash (check early due to shebang being a strong indicator)
+    CodePattern(
+        pattern: #"^#!/bin/(bash|sh|zsh)"#,
+        language: ProgrammingLanguage(name: "Shell", color: Color(hex: "7ED321"))
+    ),
+    CodePattern(
+        pattern: #"^\s*export\s+\w+=|\$\{[A-Z_][A-Z0-9_]*\}"#,
+        language: ProgrammingLanguage(name: "Shell", color: Color(hex: "7ED321"))
+    ),
+    CodePattern(
+        pattern: #"(echo|grep|sed|awk|chmod|source|alias)\s+["'\-]"#,
+        language: ProgrammingLanguage(name: "Shell", color: Color(hex: "7ED321"))
+    ),
+    CodePattern(
+        pattern: #"(\$@|\$\*|\$#|\$\?|\$!|\$\$|\$0)"#,
+        language: ProgrammingLanguage(name: "Shell", color: Color(hex: "7ED321"))
+    ),
     // Python
     CodePattern(
         pattern: #"(def|class)\s+\w+\s*\([^)]*\)\s*:"#,
@@ -75,7 +127,7 @@ let codePatterns: [CodePattern] = [
         language: ProgrammingLanguage(name: "Python", color: Color(hex: "5BA3D0"))
     ),
     CodePattern(
-        pattern: #"(if|elif|for|while)\s+.+:"#,
+        pattern: #"(if|elif|for|while)\s+[^:]+:\s*$"#,
         language: ProgrammingLanguage(name: "Python", color: Color(hex: "5BA3D0"))
     ),
     CodePattern(
@@ -88,25 +140,20 @@ let codePatterns: [CodePattern] = [
         language: ProgrammingLanguage(name: "Java", color: Color(hex: "2E94C5"))
     ),
     CodePattern(
+        pattern: #"(public|private|protected)\s+(static\s+)?\w+\s+\w+\s*\([^)]*\)\s*\{"#,
+        language: ProgrammingLanguage(name: "Java", color: Color(hex: "2E94C5"))
+    ),
+    CodePattern(
+        pattern: #"System\.(out|err)\.(println|print)\s*\("#,
+        language: ProgrammingLanguage(name: "Java", color: Color(hex: "2E94C5"))
+    ),
+    CodePattern(
         pattern: #"(package|import)\s+[\w\.]+;"#,
         language: ProgrammingLanguage(name: "Java", color: Color(hex: "2E94C5"))
     ),
     CodePattern(
         pattern: #"@Override|@Autowired|@Component|@Service"#,
         language: ProgrammingLanguage(name: "Java", color: Color(hex: "2E94C5"))
-    ),
-    // C/C++
-    CodePattern(
-        pattern: #"#include\s*<[\w\.]+>|#define\s+\w+"#,
-        language: ProgrammingLanguage(name: "C/C++", color: Color(hex: "5DADE2"))
-    ),
-    CodePattern(
-        pattern: #"(std::|using\s+namespace|template\s*<|nullptr)"#,
-        language: ProgrammingLanguage(name: "C++", color: Color(hex: "5DADE2"))
-    ),
-    CodePattern(
-        pattern: #"(printf|scanf|malloc|free)\s*\("#,
-        language: ProgrammingLanguage(name: "C", color: Color(hex: "85C1E9"))
     ),
     // C#
     CodePattern(
@@ -139,25 +186,7 @@ let codePatterns: [CodePattern] = [
         pattern: #"(use\s+std::|&str|&mut|Box<|Vec<|Option<|Result<)"#,
         language: ProgrammingLanguage(name: "Rust", color: Color(hex: "F74C00"))
     ),
-    // PHP
-    CodePattern(
-        pattern: #"<\?php|\$\w+\s*=|function\s+\w+\([^)]*\)\s*\{|echo\s+"#,
-        language: ProgrammingLanguage(name: "PHP", color: Color(hex: "9B7FC5"))
-    ),
-    CodePattern(
-        pattern: #"(public|private|protected)\s+function|\$this->"#,
-        language: ProgrammingLanguage(name: "PHP", color: Color(hex: "9B7FC5"))
-    ),
-    // Ruby
-    CodePattern(
-        pattern: #"(def\s+\w+|end$|require\s+['"]|class\s+\w+\s*<\s*\w+)"#,
-        language: ProgrammingLanguage(name: "Ruby", color: Color(hex: "E74C3C"))
-    ),
-    CodePattern(
-        pattern: #"(@\w+|attr_(reader|writer|accessor)|do\s*\|)"#,
-        language: ProgrammingLanguage(name: "Ruby", color: Color(hex: "E74C3C"))
-    ),
-    // Kotlin
+    // Kotlin (check before SQL to avoid Int/VARCHAR confusion)
     CodePattern(
         pattern: #"(fun\s+\w+|val\s+\w+|var\s+\w+:\s*\w+|data\s+class)"#,
         language: ProgrammingLanguage(name: "Kotlin", color: Color(hex: "A97BFF"))
@@ -166,19 +195,23 @@ let codePatterns: [CodePattern] = [
         pattern: #"(companion\s+object|sealed\s+class|when\s*\{)"#,
         language: ProgrammingLanguage(name: "Kotlin", color: Color(hex: "A97BFF"))
     ),
-    // Shell/Bash
+    // SQL (check before Ruby to avoid false matches)
     CodePattern(
-        pattern: #"^#!/bin/(bash|sh|zsh)|^\s*export\s+\w+=|\$\{\w+\}"#,
-        language: ProgrammingLanguage(name: "Shell", color: Color(hex: "7ED321"))
-    ),
-    CodePattern(
-        pattern: #"(echo|grep|sed|awk|chmod)\s+["']"#,
-        language: ProgrammingLanguage(name: "Shell", color: Color(hex: "7ED321"))
-    ),
-    // SQL
-    CodePattern(
-        pattern: #"(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|FROM|WHERE|JOIN)\s+"#,
+        pattern: #"(?i)(SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|DROP\s+TABLE|ALTER\s+TABLE)"#,
         language: ProgrammingLanguage(name: "SQL", color: Color(hex: "FF6B9D"))
+    ),
+    CodePattern(
+        pattern: #"(?i)(PRIMARY\s+KEY|FOREIGN\s+KEY|VARCHAR\(|WHERE\s+.+\s*=)"#,
+        language: ProgrammingLanguage(name: "SQL", color: Color(hex: "FF6B9D"))
+    ),
+    // Ruby
+    CodePattern(
+        pattern: #"(def\s+\w+|end$|require\s+['"]|class\s+\w+\s*<\s*\w+)"#,
+        language: ProgrammingLanguage(name: "Ruby", color: Color(hex: "E74C3C"))
+    ),
+    CodePattern(
+        pattern: #"(@\w+|attr_(reader|writer|accessor)|do\s*\||puts\s+)"#,
+        language: ProgrammingLanguage(name: "Ruby", color: Color(hex: "E74C3C"))
     ),
     // HTML/XML
     CodePattern(
@@ -191,7 +224,11 @@ let codePatterns: [CodePattern] = [
     ),
     // CSS/SCSS
     CodePattern(
-        pattern: #"@(import|media|keyframes)|[\w-]+\s*:\s*[^;]+;.*\}"#,
+        pattern: #"@(import|media|keyframes)|\w+\s*\{[^}]*([\w-]+\s*:\s*[^;]+;)+[^}]*\}"#,
+        language: ProgrammingLanguage(name: "CSS", color: Color(hex: "9B59B6"))
+    ),
+    CodePattern(
+        pattern: #"([\w-]+\s*:\s*[^;]+;\s*){2,}"#,
         language: ProgrammingLanguage(name: "CSS", color: Color(hex: "9B59B6"))
     ),
     CodePattern(

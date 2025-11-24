@@ -12,27 +12,35 @@ import SwiftUI
 struct CodeDetector {
     static func detectCode(in text: String) -> ProgrammingLanguage? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 3 else { return nil }
+        guard trimmed.count >= 3 else {
+            return nil
+        }
+        let lines = trimmed.components(separatedBy: .newlines)
+        let nonCommentLines = lines.filter { line in
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            return !trimmedLine.isEmpty && !trimmedLine.hasPrefix("//") && !trimmedLine.hasPrefix("#")
+        }
+        let textToAnalyze = nonCommentLines.isEmpty ? trimmed : nonCommentLines.joined(separator: "\n")
         let naturalLanguageIndicators = [
             #"\b(the|is|are|was|were|have|has|had|will|would|could|should)\b"#,
             #"\b(I|you|he|she|it|we|they)\b\s+(am|is|are|was|were)"#
         ]
-        let lowercased = trimmed.lowercased()
+        let lowercased = textToAnalyze.lowercased()
         var naturalLanguageScore = 0
         for indicator in naturalLanguageIndicators {
             if lowercased.range(of: indicator, options: .regularExpression) != nil {
                 naturalLanguageScore += 1
             }
         }
-        if naturalLanguageScore >= 2 && !hasCodeIndicators(trimmed) {
+        if naturalLanguageScore >= 2 && !hasCodeIndicators(textToAnalyze) {
             return nil
         }
         for option in codePatterns {
-            if trimmed.range(of: option.pattern, options: .regularExpression) != nil {
+            if textToAnalyze.range(of: option.pattern, options: .regularExpression) != nil {
                 return option.language
             }
         }
-        if hasCodeIndicators(trimmed) {
+        if hasCodeIndicators(textToAnalyze) {
             return ProgrammingLanguage(name: "Code", color: .blue)
         }
         return nil
@@ -101,13 +109,17 @@ struct CodeDetector {
         textView.insertionPointColor = .clear
         textView.isAutomaticTextCompletionEnabled = false
         textView.smartInsertDeleteEnabled = false
-        let reformattedText = reformatIndentation(textView.string)
+        let reformattedText = reformatIndentation(textView.string, language: language)
         textView.string = reformattedText
         let paragraphStyle = configureCodeIndent(language: language)
         applySyntaxHighlighting(to: textView, language: language, paragraphStyle: paragraphStyle)
     }
     
-    private static func reformatIndentation(_ text: String) -> String {
+    private static func reformatIndentation(_ text: String, language: ProgrammingLanguage?) -> String {
+        let indentationSensitiveLanguages = ["Python", "YAML", "Markdown"]
+        if let lang = language?.name, indentationSensitiveLanguages.contains(lang) {
+            return text
+        }
         let lines = text.components(separatedBy: .newlines)
         var reformatted: [String] = []
         var indentLevel = 0
@@ -118,13 +130,18 @@ struct CodeDetector {
                 reformatted.append("")
                 continue
             }
-            if trimmed.hasPrefix("}") || trimmed.hasPrefix("]") || trimmed.hasPrefix(")") {
+            let startsWithClosing = trimmed.hasPrefix("}") || trimmed.hasPrefix("]") || trimmed.hasPrefix(")")
+            if startsWithClosing {
                 indentLevel = max(0, indentLevel - 1)
             }
             let indentation = String(repeating: indentString, count: indentLevel)
             reformatted.append(indentation + trimmed)
-            let openCount = trimmed.filter { $0 == "{" || $0 == "[" || $0 == "(" }.count
-            let closeCount = trimmed.filter { $0 == "}" || $0 == "]" || $0 == ")" }.count
+            var charsToCount = trimmed
+            if startsWithClosing {
+                charsToCount = String(trimmed.dropFirst())
+            }
+            let openCount = charsToCount.filter { $0 == "{" || $0 == "[" || $0 == "(" }.count
+            let closeCount = charsToCount.filter { $0 == "}" || $0 == "]" || $0 == ")" }.count
             indentLevel += (openCount - closeCount)
             indentLevel = max(0, indentLevel)
         }
