@@ -12,6 +12,7 @@ struct ClipboardEntry: View {
     let isFrontMost: Bool
     let onChange: (UUID, String, Locale.Language?) -> Void
     let onPaste: () -> Void
+    let onCopy: (String) -> Void
     
     @Environment(\.translator) private var translator: Translator?
     @ObservedObject var languageContext: LanguageContext
@@ -34,12 +35,14 @@ struct ClipboardEntry: View {
         isFrontMost: Bool,
         onChange: @escaping (UUID, String, Locale.Language?) -> Void,
         onPaste: @escaping () -> Void,
+        onCopy: @escaping (String) -> Void,
         languageContext: LanguageContext
     ) {
         self.entry = entry
         self.isFrontMost = isFrontMost
         self.onChange = onChange
         self.onPaste = onPaste
+        self.onCopy = onCopy
         self.languageContext = languageContext
         _editedText = State(initialValue: entry.rewritten ?? entry.original)
         _textLanguage = State(initialValue: entry.translatedTo)
@@ -214,7 +217,7 @@ struct ClipboardEntry: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .padding(.horizontal, -6)
-            if editedText != entry.original {
+            if !isCode && editedText != entry.original {
                 Text("Original text")
                     .font(.subheadline)
                 Text(entry.original)
@@ -251,7 +254,7 @@ struct ClipboardEntry: View {
                     .keyboardShortcut(.delete, modifiers: .command)
                     .help("Delete this copy")
                     Spacer()
-                    if editedText != entry.original {
+                    if !isCode && editedText != entry.original {
                         Button(action: {
                             editedText = entry.original
                             translatingTo = nil
@@ -284,7 +287,7 @@ struct ClipboardEntry: View {
                         .keyboardShortcut("u", modifiers: .command)
                         .help("Back to the original copy")
                     }
-                    if !isCode {
+                    if !isCode && entry.original == editedText {
                         Button(action: {
                             writingToolsController.showWritingToolsPanel()
                         }) {
@@ -302,10 +305,8 @@ struct ClipboardEntry: View {
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                                         .fill(.ultraThickMaterial)
                                 )
-                                if entry.original == editedText {
-                                    Text("Rewrite")
-                                        .font(.body)
-                                }
+                                Text("Rewrite")
+                                    .font(.body)
                                 Image(systemName: "sparkles")
                                     .font(.subheadline)
                                     .foregroundStyle(.primary)
@@ -319,6 +320,38 @@ struct ClipboardEntry: View {
                         }
                         .keyboardShortcut("r", modifiers: .command)
                         .help("Rewrite this copy")
+                    }
+                    if isCode || entry.original != editedText {
+                        Button(action: {
+                            onCopy(editedText)
+                        }) {
+                            HStack {
+                                HStack {
+                                    Image(systemName: "command")
+                                    Text("C")
+                                        .font(.callout)
+                                        .padding(.leading, -5)
+                                        .padding(.trailing, 1)
+                                        .padding(.vertical, -3)
+                                }
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(.ultraThickMaterial)
+                                )
+                                Image(systemName: "document.on.document")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                                    .padding(.trailing, 3)
+                            }
+                            .padding(3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.6))
+                            )
+                        }
+                        .keyboardShortcut("c", modifiers: .command)
+                        .help("Copy rewritten text to the clipboard")
                     }
                     Button(action: onPaste) {
                         HStack {

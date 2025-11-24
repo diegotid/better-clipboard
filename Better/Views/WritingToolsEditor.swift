@@ -81,7 +81,13 @@ struct WritingToolsEditor: NSViewRepresentable {
                 nsView.hasHorizontalScroller = true
                 nsView.hasVerticalScroller = true
                 nsView.autohidesScrollers = false
+                let originalText = textView.string
                 CodeDetector.configureCodeStyling(for: textView, language: codeLanguage)
+                if textView.string != originalText {
+                    DispatchQueue.main.async {
+                        context.coordinator.parent.text = textView.string
+                    }
+                }
             } else {
                 textView.backgroundColor = .clear
                 textView.textColor = .textColor
@@ -118,7 +124,7 @@ struct WritingToolsEditor: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
-        private let parent: WritingToolsEditor
+        let parent: WritingToolsEditor
         init(_ parent: WritingToolsEditor) { self.parent = parent }
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else {

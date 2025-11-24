@@ -211,6 +211,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         layoutWindows(animated: false)
     }
+    
+    func handleCopyEntry(_ final: String) {
+        copy(final)
+    }
 
     private func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
         if captureLastApp {
@@ -451,6 +455,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
                     self?.handleEntryUpdate(id: id, text: text, language: language)
                 },
                 onPaste: handlePasteFrontEntry,
+                onCopy: handleCopyEntry,
                 languageContext: languageContext
             ).environment(\.translator, translator)
         )
@@ -582,6 +587,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
                                                            language: language)
                                },
                                onPaste: handlePasteFrontEntry,
+                               onCopy: handleCopyEntry,
                                languageContext: languageContext)
                 .environment(\.translator, translator)
             )
@@ -937,6 +943,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
         }
         lastActiveApp = nil
+    }
+    
+    private func copy(_ string: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
     }
 
     private func rotateWheel(direction: RotationDirection) {
