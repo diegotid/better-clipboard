@@ -23,20 +23,12 @@ struct WritingToolsEditor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
+        scroll.hasHorizontalScroller = true
         scroll.drawsBackground = false
         scroll.scrollerStyle = .overlay
         scroll.wantsLayer = true
         scroll.layer?.cornerRadius = cornerRadius
         scroll.layer?.masksToBounds = true
-        if let verticalScroller = scroll.verticalScroller {
-            verticalScroller.wantsLayer = true
-            verticalScroller.layer?.backgroundColor = NSColor.clear.cgColor
-            verticalScroller.alphaValue = 1.0
-            verticalScroller.scrollerStyle = .overlay
-            verticalScroller.knobStyle = .default
-            verticalScroller.layer?.cornerRadius = cornerRadius
-        }
         let textView = ShortcutAwareTextView(frame: .zero)
         textView.commandRAction = { [weak controller] in
             controller?.showWritingToolsPanel()
@@ -52,10 +44,34 @@ struct WritingToolsEditor: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.textContainerInset = NSSize(width: 6, height: 8)
         textView.usesAdaptiveColorMappingForDarkAppearance = true
-        if !isCode {
+        if isCode {
+            textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            textView.isHorizontallyResizable = true
+            textView.isVerticallyResizable = true
+            textView.textContainer?.widthTracksTextView = false
+            textView.textContainer?.heightTracksTextView = false
+            textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            textView.autoresizingMask = []
+            scroll.autohidesScrollers = false
+        } else {
             textView.drawsBackground = false
+            scroll.autohidesScrollers = true
         }
         scroll.documentView = textView
+        if let verticalScroller = scroll.verticalScroller {
+            verticalScroller.wantsLayer = true
+            verticalScroller.layer?.backgroundColor = NSColor.clear.cgColor
+            verticalScroller.alphaValue = 1.0
+            verticalScroller.scrollerStyle = .overlay
+            verticalScroller.knobStyle = .default
+            verticalScroller.layer?.cornerRadius = cornerRadius
+        }
+        if let horizontalScroller = scroll.horizontalScroller {
+            horizontalScroller.wantsLayer = true
+            horizontalScroller.layer?.backgroundColor = NSColor.clear.cgColor
+            horizontalScroller.alphaValue = 0.0
+            horizontalScroller.scrollerStyle = .overlay
+        }
         controller.textView = textView
         return scroll
     }
@@ -72,6 +88,7 @@ struct WritingToolsEditor: NSViewRepresentable {
                 textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
                 textView.drawsBackground = true
                 textView.insertionPointColor = .clear
+                textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
                 textView.isHorizontallyResizable = true
                 textView.isVerticallyResizable = true
                 textView.textContainer?.widthTracksTextView = false
@@ -113,6 +130,12 @@ struct WritingToolsEditor: NSViewRepresentable {
             verticalScroller.wantsLayer = true
             verticalScroller.layer?.backgroundColor = NSColor.clear.cgColor
             verticalScroller.knobStyle = .default
+        }
+        if let horizontalScroller = nsView.horizontalScroller {
+            horizontalScroller.scrollerStyle = .overlay
+            horizontalScroller.wantsLayer = true
+            horizontalScroller.layer?.backgroundColor = NSColor.clear.cgColor
+            horizontalScroller.alphaValue = 0.0
         }
         controller.textView = nsView.documentView as? NSTextView
     }
