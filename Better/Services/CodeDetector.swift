@@ -57,6 +57,9 @@ struct CodeDetector {
         let hasOperators = text.range(of: #"[\+\-\*/%&\|^~<>!]="#, options: .regularExpression) != nil
         let hasFunctionCall = text.range(of: #"\w+\s*\([^)]*\)"#, options: .regularExpression) != nil
         let hasArrayOrGeneric = bracketPairs >= 1 || angleCount >= 2
+        let hasMultipleEquals = equalCount >= 2
+        let hasMultipleColons = colonCount >= 2
+        let hasKeyValuePattern = colonCount >= 1 && (text.contains("{") || text.contains("["))
         var indicators = 0
         if hasMultipleSemicolons { indicators += 1 }
         if hasMultipleBrackets { indicators += 1 }
@@ -66,6 +69,9 @@ struct CodeDetector {
         if hasOperators { indicators += 1 }
         if hasFunctionCall { indicators += 1 }
         if hasArrayOrGeneric { indicators += 1 }
+        if hasMultipleEquals { indicators += 1 }
+        if hasMultipleColons { indicators += 1 }
+        if hasKeyValuePattern { indicators += 1 }
         return indicators >= 2
     }
     
@@ -93,12 +99,59 @@ struct CodeDetector {
         textView.isGrammarCheckingEnabled = false
         textView.textColor = .textColor
         textView.insertionPointColor = .textColor
-        applySyntaxHighlighting(to: textView, language: language)
+        textView.isAutomaticTextCompletionEnabled = false
+        textView.smartInsertDeleteEnabled = false
+        let reformattedText = reformatIndentation(textView.string)
+        textView.string = reformattedText
+        let paragraphStyle = configureCodeIndent(language: language)
+        applySyntaxHighlighting(to: textView, language: language, paragraphStyle: paragraphStyle)
     }
     
-    static func applySyntaxHighlighting(
+    private static func reformatIndentation(_ text: String) -> String {
+        let lines = text.components(separatedBy: .newlines)
+        var reformatted: [String] = []
+        var indentLevel = 0
+        let indentString = "    " // 4 spaces
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                reformatted.append("")
+                continue
+            }
+            if trimmed.hasPrefix("}") || trimmed.hasPrefix("]") || trimmed.hasPrefix(")") {
+                indentLevel = max(0, indentLevel - 1)
+            }
+            let indentation = String(repeating: indentString, count: indentLevel)
+            reformatted.append(indentation + trimmed)
+            let openCount = trimmed.filter { $0 == "{" || $0 == "[" || $0 == "(" }.count
+            let closeCount = trimmed.filter { $0 == "}" || $0 == "]" || $0 == ")" }.count
+            indentLevel += (openCount - closeCount)
+            indentLevel = max(0, indentLevel)
+        }
+        return reformatted.joined(separator: "\n")
+    }
+
+    private static func configureCodeIndent(language: ProgrammingLanguage?) -> NSParagraphStyle {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.headIndent = 0
+        paragraphStyle.firstLineHeadIndent = 0
+        paragraphStyle.tabStops = []
+        let tabWidth: CGFloat = 4.0
+        let font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        let charWidth = ("    " as NSString).size(withAttributes: [.font: font]).width / 4.0
+        paragraphStyle.defaultTabInterval = charWidth * tabWidth
+        for i in 1...20 {
+            let location = charWidth * tabWidth * CGFloat(i)
+            let tabStop = NSTextTab(textAlignment: .left, location: location)
+            paragraphStyle.tabStops.append(tabStop)
+        }
+        return paragraphStyle
+    }
+    
+    private static func applySyntaxHighlighting(
         to textView: NSTextView,
-        language: ProgrammingLanguage?
+        language: ProgrammingLanguage?,
+        paragraphStyle: NSParagraphStyle
     ) {
         guard let storage = textView.textStorage else {
             return
@@ -106,6 +159,7 @@ struct CodeDetector {
         let fullRange = NSRange(location: 0, length: storage.length)
         let text = storage.string
         storage.removeAttribute(.foregroundColor, range: fullRange)
+        storage.addAttribute(.paragraphStyle, value: paragraphStyle, range: fullRange)
         let keywordColor = NSColor.systemPurple
         let stringColor = NSColor.systemRed
         let commentColor = NSColor.systemGreen

@@ -44,18 +44,18 @@ struct WritingToolsEditor: NSViewRepresentable {
         textView.isRichText = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
-        if isCode {
-            CodeDetector.configureCodeStyling(for: textView, language: codeLanguage)
-        } else {
-            textView.font = .preferredFont(forTextStyle: .body)
-        }
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.insertionPointColor = .clear
         textView.performProgrammaticEdit {
             textView.string = text
         }
         textView.delegate = context.coordinator
         textView.textContainerInset = NSSize(width: 6, height: 8)
         textView.usesAdaptiveColorMappingForDarkAppearance = true
-        textView.drawsBackground = false
+        if !isCode {
+            textView.drawsBackground = false
+        }
         scroll.documentView = textView
         controller.textView = textView
         return scroll
@@ -66,8 +66,36 @@ struct WritingToolsEditor: NSViewRepresentable {
             textView.performProgrammaticEdit {
                 textView.string = text
             }
+        }
+        if let textView = nsView.documentView as? ShortcutAwareTextView {
             if isCode {
-                CodeDetector.applySyntaxHighlighting(to: textView, language: codeLanguage)
+                textView.backgroundColor = NSColor.white
+                textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+                textView.drawsBackground = true
+                textView.isHorizontallyResizable = true
+                textView.isVerticallyResizable = true
+                textView.textContainer?.widthTracksTextView = false
+                textView.textContainer?.heightTracksTextView = false
+                textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+                textView.autoresizingMask = []
+                nsView.hasHorizontalScroller = true
+                nsView.hasVerticalScroller = true
+                nsView.autohidesScrollers = false
+                CodeDetector.configureCodeStyling(for: textView, language: codeLanguage)
+            } else {
+                textView.backgroundColor = .clear
+                textView.textColor = .textColor
+                textView.font = .preferredFont(forTextStyle: .body)
+                textView.drawsBackground = false
+                textView.isHorizontallyResizable = false
+                textView.isVerticallyResizable = true
+                textView.textContainer?.widthTracksTextView = true
+                textView.textContainer?.heightTracksTextView = false
+                textView.textContainer?.containerSize = NSSize(width: nsView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+                textView.autoresizingMask = [.width]
+                nsView.hasHorizontalScroller = false
+                nsView.hasVerticalScroller = true
+                nsView.autohidesScrollers = true
             }
         }
         nsView.wantsLayer = true
