@@ -221,13 +221,11 @@ struct ClipboardEntry: View {
                 }
             }
             ZStack(alignment: .topLeading) {
-                WritingToolsEditor.blurredBackground(cornerRadius: cornerRadius)
-                if isImage, let imageData = entry.imageData, let nsImage = NSImage(data: imageData) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity, maxHeight: 400)
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                VisualEffectBlur(material: .contentBackground).opacity(0.6)
+                if isImage,
+                   let imageData = entry.imageData,
+                   let nsImage = NSImage(data: imageData) {
+                    AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius)
                 } else {
                     WritingToolsEditor(
                         text: $editedText,
@@ -547,6 +545,26 @@ private struct WindowLevelModifier: NSViewRepresentable {
     }
 }
 
+private struct AdaptiveImageContainer: View {
+    let image: NSImage
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            ZStack {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(image.size, contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+            }
+            .frame(width: size.width, height: size.height)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+    }
+}
+
 private extension ClipboardEntry {
     func translate(to language: Locale.Language) {
         guard let translator else {
@@ -565,6 +583,31 @@ private extension ClipboardEntry {
                 NSLog("Translation failed: \(error)")
             }
         }
+    }
+}
+
+struct VisualEffectBlur: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+
+    init(material: NSVisualEffectView.Material = .windowBackground,
+         blendingMode: NSVisualEffectView.BlendingMode = .behindWindow) {
+        self.material = material
+        self.blendingMode = blendingMode
+    }
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = .active
     }
 }
 

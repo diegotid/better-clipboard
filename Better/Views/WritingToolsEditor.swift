@@ -156,10 +156,6 @@ struct WritingToolsEditor: NSViewRepresentable {
             parent.text = textView.string
         }
     }
-
-    static func blurredBackground(cornerRadius: CGFloat = 12) -> some View {
-        VisualEffectBlur(material: .contentBackground).opacity(0.6)
-    }
 }
 
 private final class ShortcutAwareTextView: NSTextView {
@@ -206,30 +202,5 @@ private final class ShortcutAwareTextView: NSTextView {
         }
         commandRAction?()
         return true
-    }
-}
-
-struct VisualEffectBlur: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-
-    init(material: NSVisualEffectView.Material = .windowBackground,
-         blendingMode: NSVisualEffectView.BlendingMode = .behindWindow) {
-        self.material = material
-        self.blendingMode = blendingMode
-    }
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-        nsView.state = .active
     }
 }
