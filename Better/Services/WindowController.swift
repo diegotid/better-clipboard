@@ -220,6 +220,9 @@ final class WindowController: NSObject, NSMenuItemValidation {
         if captureLastApp {
             lastActiveApp = NSWorkspace.shared.frontmostApplication
         }
+        if let aboutWin = aboutWindow {
+            aboutWin.orderOut(nil)
+        }
         closeWindows()
         let history = clipboard.history
         guard !history.isEmpty else {
@@ -475,7 +478,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         window.contentViewController = hostingController
         window.level = NSWindow.Level.floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let container = NSView(frame: NSRect(origin: .zero, size: windowSize))
+        let container = FocusableContainer(frame: NSRect(origin: .zero, size: windowSize))
         container.wantsLayer = true
         container.layer?.cornerRadius = cornerRadius
         container.layer?.masksToBounds = true
@@ -484,6 +487,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         container.addSubview(blurView)
         container.addSubview(hostingView)
         window.contentView = container
+        window.initialFirstResponder = container
         return (window, hostingController)
     }
 
@@ -801,28 +805,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
             switch event.keyCode {
             case UInt16(kVK_DownArrow):
                 self.rotateWheel(direction: .older)
-                return NSEvent.keyEvent(with: .keyDown, 
-                                      location: event.locationInWindow, 
-                                      modifierFlags: [], 
-                                      timestamp: event.timestamp, 
-                                      windowNumber: event.windowNumber, 
-                                      context: nil, 
-                                      characters: "", 
-                                      charactersIgnoringModifiers: "", 
-                                      isARepeat: false, 
-                                      keyCode: 0)
+                return nil
             case UInt16(kVK_UpArrow):
                 self.rotateWheel(direction: .newer)
-                return NSEvent.keyEvent(with: .keyDown, 
-                                      location: event.locationInWindow, 
-                                      modifierFlags: [], 
-                                      timestamp: event.timestamp, 
-                                      windowNumber: event.windowNumber, 
-                                      context: nil, 
-                                      characters: "", 
-                                      charactersIgnoringModifiers: "", 
-                                      isARepeat: false, 
-                                      keyCode: 0)
+                return nil
             case UInt16(kVK_Delete):
                 if event.modifierFlags.contains(.command) {
                     self.deleteFrontEntry()
@@ -1014,6 +1000,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
 private final class FloatingClipboardWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+}
+
+private final class FocusableContainer: NSView {
+    override var acceptsFirstResponder: Bool { true }
 }
 
 private final class StatusOverlayWindow: NSPanel {

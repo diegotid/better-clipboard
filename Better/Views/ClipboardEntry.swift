@@ -480,7 +480,7 @@ struct ClipboardEntry: View {
             writingToolsController.onUnavailable = {
                 showingWritingToolsHelp = true
             }
-            if isFrontMost {
+            if isFrontMost && !isImage {
                 writingToolsController.focusTextView()
             }
             Task {
@@ -499,7 +499,7 @@ struct ClipboardEntry: View {
             writingToolsController.onUnavailable = nil
         }
         .onChange(of: isFrontMost) { _, newValue in
-            if newValue {
+            if newValue && !isImage {
                 writingToolsController.focusTextView()
             } else {
                 writingToolsController.scheduleDismiss()
