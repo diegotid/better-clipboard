@@ -195,7 +195,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
             closeWindows()
             return
         }
-        paste(frontEntry.rewritten ?? frontEntry.original)
+        paste(entry: frontEntry)
         if windows.count > 1 {
             for (window, _) in windows.dropFirst() {
                 window.orderOut(nil)
@@ -911,10 +911,38 @@ final class WindowController: NSObject, NSMenuItemValidation {
         updateToggleMenuTitle()
     }
 
+    private func paste(entry: CopiedContent) {
+        switch entry.contentType {
+        case .image:
+            pasteImage(entry.imageData)
+        case .text:
+            paste(entry.rewritten ?? entry.original)
+        }
+    }
+
     private func paste(_ string: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
+        sendPasteToLastActiveApp()
+    }
+
+    private func pasteImage(_ data: Data?) {
+        guard let data else {
+            return
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if let image = NSImage(data: data) {
+            pasteboard.writeObjects([image])
+        } else {
+            pasteboard.setData(data, forType: .tiff)
+            pasteboard.setData(data, forType: .png)
+        }
+        sendPasteToLastActiveApp()
+    }
+
+    private func sendPasteToLastActiveApp() {
         if let lastApp = lastActiveApp {
             _ = lastApp.activate(options: [.activateAllWindows])
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
