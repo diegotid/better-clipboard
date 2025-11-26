@@ -46,10 +46,11 @@ struct WritingToolsEditor: NSViewRepresentable {
         textView.usesAdaptiveColorMappingForDarkAppearance = true
         if isCode {
             textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-            textView.isHorizontallyResizable = true
+            textView.isHorizontallyResizable = false
             textView.isVerticallyResizable = true
             textView.textContainer?.widthTracksTextView = false
             textView.textContainer?.heightTracksTextView = false
+            textView.textContainer?.lineBreakMode = .byClipping
             textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
             textView.autoresizingMask = []
             scroll.autohidesScrollers = false
@@ -90,13 +91,14 @@ struct WritingToolsEditor: NSViewRepresentable {
                 textView.drawsBackground = false
                 textView.insertionPointColor = .clear
                 textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-                textView.isHorizontallyResizable = true
+                textView.isHorizontallyResizable = false
                 textView.isVerticallyResizable = true
                 textView.textContainer?.widthTracksTextView = false
                 textView.textContainer?.heightTracksTextView = false
+                textView.textContainer?.lineBreakMode = .byClipping
                 textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
                 textView.autoresizingMask = []
-                nsView.hasHorizontalScroller = true
+                nsView.hasHorizontalScroller = false
                 nsView.hasVerticalScroller = true
                 nsView.autohidesScrollers = false
                 let originalText = textView.string
