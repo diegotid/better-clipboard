@@ -85,8 +85,9 @@ struct WritingToolsEditor: NSViewRepresentable {
         if let textView = nsView.documentView as? ShortcutAwareTextView {
             if isCode {
                 textView.backgroundColor = NSColor.white
-                textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-                textView.drawsBackground = true
+                let fontSize = NSFont.preferredFont(forTextStyle: .body).pointSize
+                textView.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+                textView.drawsBackground = false
                 textView.insertionPointColor = .clear
                 textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
                 textView.isHorizontallyResizable = true
