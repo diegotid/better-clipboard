@@ -21,7 +21,7 @@ struct WritingToolsEditor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> ScaledScrollView {
-        let scroll = ScaledScrollView()
+        let scroll = ScaledScrollView(isCode: isCode)
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = true
         scroll.drawsBackground = false
@@ -124,6 +124,7 @@ struct WritingToolsEditor: NSViewRepresentable {
                 nsView.autohidesScrollers = true
             }
         }
+        nsView.setIsCode(isCode)
         nsView.wantsLayer = true
         nsView.layer?.cornerRadius = cornerRadius
         nsView.layer?.masksToBounds = true
@@ -209,6 +210,22 @@ private final class ShortcutAwareTextView: NSTextView {
 }
 
 final class ScaledScrollView: NSScrollView {
+    private var isCode: Bool
+    
+    init(isCode: Bool) {
+        self.isCode = isCode
+        super.init(frame: .zero)
+    }
+    
+    func setIsCode(_ newValue: Bool) {
+        self.isCode = newValue
+        updateScale()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
     override func resize(withOldSuperviewSize oldSize: NSSize) {
         super.resize(withOldSuperviewSize: oldSize)
         updateScale()
@@ -227,8 +244,8 @@ final class ScaledScrollView: NSScrollView {
         let currentWindowHeight = window.frame.height
         let scale = currentWindowHeight / baseWindowHeight
         if let textView = documentView as? NSTextView {
-            let baseFontSize = NSFont.preferredFont(forTextStyle: .body).pointSize * 1.15
-            let scaledFontSize = baseFontSize * scale
+            let baseFontSize = NSFont.preferredFont(forTextStyle: .body).pointSize
+            let scaledFontSize = baseFontSize * scale * (isCode ? 1.05 : 1.15)
             if let currentFont = textView.font {
                 let isMonospaced = currentFont.fontDescriptor.symbolicTraits.contains(.monoSpace)
                 if isMonospaced {
