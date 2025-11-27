@@ -22,8 +22,11 @@ struct CodeDetector {
         }
         let textToAnalyze = nonCommentLines.isEmpty ? trimmed : nonCommentLines.joined(separator: "\n")
         let naturalLanguageIndicators = [
-            #"\b(the|is|are|was|were|have|has|had|will|would|could|should)\b"#,
-            #"\b(I|you|he|she|it|we|they)\b\s+(am|is|are|was|were)"#
+            #"\b(the|is|are|was|were|have|has|had|will|would|could|should|can|may|might)\b"#,
+            #"\b(I|you|he|she|it|we|they)\b\s+(am|is|are|was|were|have|has|had|do|does|did|will|would|could|should|can)"#,
+            #"\b(and|or|but|from|with|into|onto|about|through|during|before|after)\b"#,
+            #"\b(my|your|his|her|its|our|their|this|that|these|those)\b"#,
+            #"[.!?]\s+[A-Z]"#  // Sentence structure with punctuation
         ]
         let lowercased = textToAnalyze.lowercased()
         var naturalLanguageScore = 0
@@ -31,6 +34,13 @@ struct CodeDetector {
             if lowercased.range(of: indicator, options: .regularExpression) != nil {
                 naturalLanguageScore += 1
             }
+        }
+        let hasMultipleSentences = textToAnalyze.filter { $0 == "." || $0 == "!" || $0 == "?" }.count >= 1
+        let wordCount = textToAnalyze.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
+        let hasProseLength = wordCount >= 8 // At least 8 words suggests prose
+        let hasArticles = lowercased.range(of: #"\b(a|an|the)\b"#, options: .regularExpression) != nil
+        if naturalLanguageScore >= 3 || (naturalLanguageScore >= 2 && (hasMultipleSentences || hasProseLength || hasArticles)) {
+            return nil
         }
         if naturalLanguageScore >= 2 && !hasCodeIndicators(textToAnalyze) {
             return nil
