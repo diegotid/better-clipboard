@@ -262,25 +262,32 @@ struct ClipboardEntry: View {
                         if isCropped || isUpscaled {
                             let isPortrait = imageAspectRatio < 1.0
                             let thumbnailSize: CGSize = {
+                                var calculatedSize: CGSize
                                 if isPortrait {
                                     let height = size.height * thumbnailHeightScale
                                     let width = height * imageAspectRatio
                                     if width > size.width * thumbnailWidthScale {
                                         let constrainedWidth = size.width * thumbnailWidthScale
                                         let constrainedHeight = constrainedWidth / imageAspectRatio
-                                        return CGSize(width: constrainedWidth, height: constrainedHeight)
+                                        calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+                                    } else {
+                                        calculatedSize = CGSize(width: width, height: height)
                                     }
-                                    return CGSize(width: width, height: height)
                                 } else {
                                     let width = size.width * thumbnailWidthScale
                                     let height = width / imageAspectRatio
                                     if height > size.height * thumbnailHeightScale {
                                         let constrainedHeight = size.height * thumbnailHeightScale
                                         let constrainedWidth = constrainedHeight * imageAspectRatio
-                                        return CGSize(width: constrainedWidth, height: constrainedHeight)
+                                        calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+                                    } else {
+                                        calculatedSize = CGSize(width: width, height: height)
                                     }
-                                    return CGSize(width: width, height: height)
                                 }
+                                return CGSize(
+                                    width: min(calculatedSize.width, imageSize.width),
+                                    height: min(calculatedSize.height, imageSize.height)
+                                )
                             }()
                             Image(nsImage: nsImage)
                                 .resizable()
