@@ -309,225 +309,7 @@ struct ClipboardEntry: View {
             }
             if isFrontMost {
                 Spacer()
-                HStack(spacing: 12) {
-                    Button(action: {
-                        NotificationCenter.default.post(name: .deleteFrontEntryRequested,
-                                                        object: entry.id)
-                    }) {
-                        HStack {
-                            HStack {
-                                Image(systemName: "command")
-                                Image(systemName: "delete.left")
-                                    .padding(.leading, -5)
-                            }
-                            .padding(4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(.ultraThickMaterial)
-                            )
-                            Text("Delete")
-                                .font(.body)
-                                .padding(.trailing, 8)
-                        }
-                        .padding(3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(.secondary.opacity(0.6))
-                        )
-                    }
-                    .keyboardShortcut(.delete, modifiers: .command)
-                    .help("Delete this copy")
-                    Spacer()
-                    if !isImage && !isCode && editedText != entry.original {
-                        Button(action: {
-                            editedText = entry.original
-                            translatingTo = nil
-                            translatedTo = nil
-                        }) {
-                            HStack {
-                                HStack {
-                                    Image(systemName: "command")
-                                    Text("U")
-                                        .font(.callout)
-                                        .padding(.leading, -5)
-                                        .padding(.trailing, 1)
-                                        .padding(.vertical, -3)
-                                }
-                                .padding(4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(.ultraThickMaterial)
-                                )
-                                Text("Back to original")
-                                    .font(.body)
-                                    .padding(.trailing, 8)
-                            }
-                            .padding(3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.6))
-                            )
-                        }
-                        .keyboardShortcut("u", modifiers: .command)
-                        .help("Back to the original copy")
-                    }
-                    if !isImage && !isCode && entry.original == editedText {
-                        Button(action: {
-                            writingToolsController.showWritingToolsPanel()
-                        }) {
-                            HStack {
-                                HStack {
-                                    Image(systemName: "command")
-                                    Text("R")
-                                        .font(.callout)
-                                        .padding(.leading, -5)
-                                        .padding(.trailing, 1)
-                                        .padding(.vertical, -3)
-                                }
-                                .padding(4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(.ultraThickMaterial)
-                                )
-                                Text("Rewrite")
-                                    .font(.body)
-                                Image(systemName: "sparkles")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.primary)
-                                    .padding(.trailing, 3)
-                            }
-                            .padding(3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.6))
-                            )
-                        }
-                        .keyboardShortcut("r", modifiers: .command)
-                        .help("Rewrite this copy")
-                    }
-                    if !isImage && (isCode || entry.original != editedText) {
-                        Button(action: {
-                            onCopy(editedText)
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                showCopyConfirmation = true
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    showCopyConfirmation = false
-                                }
-                            }
-                        }) {
-                            HStack {
-                                HStack {
-                                    Image(systemName: "command")
-                                    Text("C")
-                                        .font(.callout)
-                                        .padding(.leading, -5)
-                                        .padding(.trailing, 1)
-                                        .padding(.vertical, -3)
-                                }
-                                .padding(4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(.ultraThickMaterial)
-                                )
-                                if showCopyConfirmation {
-                                    Image(systemName: "checkmark")
-                                        .font(.subheadline)
-                                        .padding(.trailing, 5)
-                                        .transition(.scale.combined(with: .opacity))
-                                } else {
-                                    Image(systemName: "document.on.document")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.primary)
-                                        .padding(.trailing, 3)
-                                        .transition(.scale.combined(with: .opacity))
-                                }
-                            }
-                            .padding(3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.6))
-                            )
-                        }
-                        .keyboardShortcut("c", modifiers: .command)
-                        .help("Copy rewritten text to the clipboard")
-                    }
-                    if isImage {
-                        Button(action: {
-                            if let imageData = entry.imageData {
-                                let pasteboard = NSPasteboard.general
-                                pasteboard.clearContents()
-                                pasteboard.setData(imageData, forType: .tiff)
-                            }
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                showCopyConfirmation = true
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    showCopyConfirmation = false
-                                }
-                            }
-                        }) {
-                            HStack {
-                                HStack {
-                                    Image(systemName: "command")
-                                    Text("C")
-                                        .font(.callout)
-                                        .padding(.leading, -5)
-                                        .padding(.trailing, 1)
-                                        .padding(.vertical, -3)
-                                }
-                                .padding(4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(.ultraThickMaterial)
-                                )
-                                if showCopyConfirmation {
-                                    Image(systemName: "checkmark")
-                                        .font(.subheadline)
-                                        .padding(.trailing, 5)
-                                        .transition(.scale.combined(with: .opacity))
-                                } else {
-                                    Image(systemName: "photo.on.rectangle")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.primary)
-                                        .padding(.trailing, 3)
-                                        .transition(.scale.combined(with: .opacity))
-                                }
-                            }
-                            .padding(3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.6))
-                            )
-                        }
-                        .keyboardShortcut("c", modifiers: .command)
-                        .help("Copy image to the clipboard")
-                    }
-                    Button(action: onPaste) {
-                        HStack {
-                            Image(systemName: "return")
-                                .padding(4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(.ultraThickMaterial)
-                                )
-                            Text("Paste")
-                                .font(.body)
-                                .padding(.trailing, 8)
-                        }
-                        .padding(3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(.secondary.opacity(0.6))
-                        )
-                    }
-                    .keyboardShortcut(.return)
-                    .help("Paste this copy")
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
+                buttonBar()
             }
         }
         .padding(20)
@@ -580,6 +362,229 @@ struct ClipboardEntry: View {
                 showingWritingToolsHelp = false
             }
         }
+    }
+    
+    @ViewBuilder
+    private func buttonBar() -> some View {
+        HStack(spacing: 12) {
+            Button(action: {
+                NotificationCenter.default.post(name: .deleteFrontEntryRequested,
+                                                object: entry.id)
+            }) {
+                HStack {
+                    HStack {
+                        Image(systemName: "command")
+                        Image(systemName: "delete.left")
+                            .padding(.leading, -5)
+                    }
+                    .padding(4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(.ultraThickMaterial)
+                    )
+                    Text("Delete")
+                        .font(.body)
+                        .padding(.trailing, 8)
+                }
+                .padding(3)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(.secondary.opacity(0.6))
+                )
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .help("Delete this copy")
+            Spacer()
+            if !isImage && !isCode && editedText != entry.original {
+                Button(action: {
+                    editedText = entry.original
+                    translatingTo = nil
+                    translatedTo = nil
+                }) {
+                    HStack {
+                        HStack {
+                            Image(systemName: "command")
+                            Text("U")
+                                .font(.callout)
+                                .padding(.leading, -5)
+                                .padding(.trailing, 1)
+                                .padding(.vertical, -3)
+                        }
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.ultraThickMaterial)
+                        )
+                        Text("Back to original")
+                            .font(.body)
+                            .padding(.trailing, 8)
+                    }
+                    .padding(3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.secondary.opacity(0.6))
+                    )
+                }
+                .keyboardShortcut("u", modifiers: .command)
+                .help("Back to the original copy")
+            }
+            if !isImage && !isCode && entry.original == editedText {
+                Button(action: {
+                    writingToolsController.showWritingToolsPanel()
+                }) {
+                    HStack {
+                        HStack {
+                            Image(systemName: "command")
+                            Text("R")
+                                .font(.callout)
+                                .padding(.leading, -5)
+                                .padding(.trailing, 1)
+                                .padding(.vertical, -3)
+                        }
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.ultraThickMaterial)
+                        )
+                        Text("Rewrite")
+                            .font(.body)
+                        Image(systemName: "sparkles")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .padding(.trailing, 3)
+                    }
+                    .padding(3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.secondary.opacity(0.6))
+                    )
+                }
+                .keyboardShortcut("r", modifiers: .command)
+                .help("Rewrite this copy")
+            }
+            if !isImage && (isCode || entry.original != editedText) {
+                Button(action: {
+                    onCopy(editedText)
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        showCopyConfirmation = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            showCopyConfirmation = false
+                        }
+                    }
+                }) {
+                    HStack {
+                        HStack {
+                            Image(systemName: "command")
+                            Text("C")
+                                .font(.callout)
+                                .padding(.leading, -5)
+                                .padding(.trailing, 1)
+                                .padding(.vertical, -3)
+                        }
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.ultraThickMaterial)
+                        )
+                        if showCopyConfirmation {
+                            Image(systemName: "checkmark")
+                                .font(.subheadline)
+                                .padding(.trailing, 5)
+                                .transition(.scale.combined(with: .opacity))
+                        } else {
+                            Image(systemName: "document.on.document")
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .padding(.trailing, 3)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .padding(3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.secondary.opacity(0.6))
+                    )
+                }
+                .keyboardShortcut("c", modifiers: .command)
+                .help("Copy rewritten text to the clipboard")
+            }
+            if isImage {
+                Button(action: {
+                    if let imageData = entry.imageData {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setData(imageData, forType: .tiff)
+                    }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        showCopyConfirmation = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            showCopyConfirmation = false
+                        }
+                    }
+                }) {
+                    HStack {
+                        HStack {
+                            Image(systemName: "command")
+                            Text("C")
+                                .font(.callout)
+                                .padding(.leading, -5)
+                                .padding(.trailing, 1)
+                                .padding(.vertical, -3)
+                        }
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.ultraThickMaterial)
+                        )
+                        if showCopyConfirmation {
+                            Image(systemName: "checkmark")
+                                .font(.subheadline)
+                                .padding(.trailing, 5)
+                                .transition(.scale.combined(with: .opacity))
+                        } else {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .padding(.trailing, 3)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .padding(3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.secondary.opacity(0.6))
+                    )
+                }
+                .keyboardShortcut("c", modifiers: .command)
+                .help("Copy image to the clipboard")
+            }
+            Button(action: onPaste) {
+                HStack {
+                    Image(systemName: "return")
+                        .padding(4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.ultraThickMaterial)
+                        )
+                    Text("Paste")
+                        .font(.body)
+                        .padding(.trailing, 8)
+                }
+                .padding(3)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(.secondary.opacity(0.6))
+                )
+            }
+            .keyboardShortcut(.return)
+            .help("Paste this copy")
+        }
+        .buttonStyle(.borderless)
+        .font(.caption)
     }
 }
 

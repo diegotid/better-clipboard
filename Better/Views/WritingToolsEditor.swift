@@ -20,8 +20,8 @@ struct WritingToolsEditor: NSViewRepresentable {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView()
+    func makeNSView(context: Context) -> ScaledScrollView {
+        let scroll = ScaledScrollView()
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = true
         scroll.drawsBackground = false
@@ -77,7 +77,7 @@ struct WritingToolsEditor: NSViewRepresentable {
         return scroll
     }
 
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
+    func updateNSView(_ nsView: ScaledScrollView, context: Context) {
         if let textView = nsView.documentView as? ShortcutAwareTextView, textView.string != text {
             textView.performProgrammaticEdit {
                 textView.string = text
@@ -143,7 +143,7 @@ struct WritingToolsEditor: NSViewRepresentable {
         controller.textView = nsView.documentView as? NSTextView
     }
 
-    static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+    static func dismantleNSView(_ nsView: ScaledScrollView, coordinator: Coordinator) {
         if let textView = nsView.documentView as? NSTextView {
             textView.delegate = nil
         }
@@ -205,5 +205,38 @@ private final class ShortcutAwareTextView: NSTextView {
         }
         commandRAction?()
         return true
+    }
+}
+
+final class ScaledScrollView: NSScrollView {
+    override func resize(withOldSuperviewSize oldSize: NSSize) {
+        super.resize(withOldSuperviewSize: oldSize)
+        updateScale()
+    }
+    
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateScale()
+    }
+    
+    private func updateScale() {
+        guard let window = window else {
+            return
+        }
+        let baseWindowHeight: CGFloat = 400.0
+        let currentWindowHeight = window.frame.height
+        let scale = currentWindowHeight / baseWindowHeight
+        if let textView = documentView as? NSTextView {
+            let baseFontSize = NSFont.preferredFont(forTextStyle: .body).pointSize * 1.15
+            let scaledFontSize = baseFontSize * scale
+            if let currentFont = textView.font {
+                let isMonospaced = currentFont.fontDescriptor.symbolicTraits.contains(.monoSpace)
+                if isMonospaced {
+                    textView.font = .monospacedSystemFont(ofSize: scaledFontSize, weight: .regular)
+                } else {
+                    textView.font = .systemFont(ofSize: scaledFontSize)
+                }
+            }
+        }
     }
 }
