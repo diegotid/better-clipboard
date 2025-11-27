@@ -30,7 +30,10 @@ struct ClipboardEntry: View {
 
     private var isCode: Bool { codeLanguage != nil }
     private var isImage: Bool { entry.contentType == .image }
+    
     private let cornerRadius: CGFloat = 12
+    private let thumbnailHeightScale: CGFloat = 1.08
+    private let thumbnailWidthScale: CGFloat = 1.01
 
     init(
         entry: CopiedContent,
@@ -226,7 +229,7 @@ struct ClipboardEntry: View {
                     if isImage,
                        let imageData = entry.imageData,
                        let nsImage = NSImage(data: imageData) {
-                        AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius, showThumbnail: false)
+                        AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius)
                     } else {
                         WritingToolsEditor(
                             text: $editedText,
@@ -260,12 +263,22 @@ struct ClipboardEntry: View {
                             let isPortrait = imageAspectRatio < 1.0
                             let thumbnailSize: CGSize = {
                                 if isPortrait {
-                                    let height = size.height * 1.15
+                                    let height = size.height * thumbnailHeightScale
                                     let width = height * imageAspectRatio
+                                    if width > size.width * thumbnailWidthScale {
+                                        let constrainedWidth = size.width * thumbnailWidthScale
+                                        let constrainedHeight = constrainedWidth / imageAspectRatio
+                                        return CGSize(width: constrainedWidth, height: constrainedHeight)
+                                    }
                                     return CGSize(width: width, height: height)
                                 } else {
-                                    let width = size.width * 1.015
+                                    let width = size.width * thumbnailWidthScale
                                     let height = width / imageAspectRatio
+                                    if height > size.height * thumbnailHeightScale {
+                                        let constrainedHeight = size.height * thumbnailHeightScale
+                                        let constrainedWidth = constrainedHeight * imageAspectRatio
+                                        return CGSize(width: constrainedWidth, height: constrainedHeight)
+                                    }
                                     return CGSize(width: width, height: height)
                                 }
                             }()
@@ -280,6 +293,9 @@ struct ClipboardEntry: View {
                                 )
                                 .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 4)
                                 .frame(width: size.width, height: size.height)
+                                .opacity(isFrontMost ? 1 : 0)
+                                .scaleEffect(isFrontMost ? 1 : 0.9)
+                                .animation(.spring(response: 0.9, dampingFraction: 0.8), value: isFrontMost)
                         }
                     }
                     .padding(.horizontal, -6)
@@ -583,44 +599,6 @@ private struct WindowLevelModifier: NSViewRepresentable {
             if let window = nsView.window {
                 window.level = .modalPanel
             }
-        }
-    }
-}
-
-private struct AdaptiveImageContainer: View {
-    let image: NSImage
-    let cornerRadius: CGFloat
-    let showThumbnail: Bool
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size
-            let imageSize = image.size
-            let imageAspectRatio = imageSize.width / imageSize.height
-            let containerAspectRatio = size.width / size.height
-            let isCropped = abs(imageAspectRatio - containerAspectRatio) > 0.01
-            let scaleFactor = min(size.width / imageSize.width, size.height / imageSize.height)
-            let isUpscaled = scaleFactor > 1.2
-            let shouldBlur = isCropped || isUpscaled
-            ZStack {
-                if shouldBlur {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(imageSize, contentMode: .fill)
-                        .frame(width: size.width, height: size.height)
-                        .blur(radius: 8)
-                        .brightness(-0.5)
-                        .clipped()
-                } else {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(imageSize, contentMode: .fill)
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
-                }
-            }
-            .frame(width: size.width, height: size.height)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
 }
