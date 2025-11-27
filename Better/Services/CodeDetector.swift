@@ -10,10 +10,39 @@ import AppKit
 import SwiftUI
 
 struct CodeDetector {
+    static let codeThreshold: Double = 0.1
+
     static func detectCode(in text: String) -> ProgrammingLanguage? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 3 else {
             return nil
+        }
+        let commentPatterns: [(pattern: String, language: ProgrammingLanguage)] = [
+            ("//", ProgrammingLanguage(name: "C-style", color: Color(hex: "7F8C8D"))),
+            ("#", ProgrammingLanguage(name: "Script", color: Color(hex: "7ED321"))),
+            ("/*", ProgrammingLanguage(name: "C-style", color: Color(hex: "7F8C8D"))),
+            ("<!--", ProgrammingLanguage(name: "HTML", color: Color(hex: "FF6347"))),
+            ("--", ProgrammingLanguage(name: "SQL", color: Color(hex: "FF6B9D"))),
+            ("'''", ProgrammingLanguage(name: "Python", color: Color(hex: "5BA3D0"))),
+            ("\"\"\"", ProgrammingLanguage(name: "Python", color: Color(hex: "5BA3D0")))
+        ]
+        for (pattern, language) in commentPatterns {
+            if trimmed.hasPrefix(pattern) {
+                return language
+            }
+        }
+        let structuralChars = trimmed.filter { "{}[]:,".contains($0) }.count
+        let textLength = trimmed.count
+        let structuralDensity = Double(structuralChars) / Double(textLength)
+        if structuralDensity > 0.10 {
+            if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+                let hasQuotedKeys = trimmed.range(of: #""[^"]+"\s*:"#, options: .regularExpression) != nil
+                let hasKeyValuePairs = trimmed.contains(":") && trimmed.contains("\"")
+                if hasQuotedKeys || hasKeyValuePairs {
+                    return ProgrammingLanguage(name: "JSON", color: Color(hex: "95A5A6"))
+                }
+            }
+            return ProgrammingLanguage(name: "Code", color: Color(hex: "7F8C8D"))
         }
         let lines = trimmed.components(separatedBy: .newlines)
         let nonCommentLines = lines.filter { line in
@@ -21,28 +50,20 @@ struct CodeDetector {
             return !trimmedLine.isEmpty && !trimmedLine.hasPrefix("//") && !trimmedLine.hasPrefix("#")
         }
         let textToAnalyze = nonCommentLines.isEmpty ? trimmed : nonCommentLines.joined(separator: "\n")
-        let naturalLanguageIndicators = [
-            #"\b(the|is|are|was|were|have|has|had|will|would|could|should|can|may|might)\b"#,
-            #"\b(I|you|he|she|it|we|they)\b\s+(am|is|are|was|were|have|has|had|do|does|did|will|would|could|should|can)"#,
-            #"\b(and|or|but|from|with|into|onto|about|through|during|before|after)\b"#,
-            #"\b(my|your|his|her|its|our|their|this|that|these|those)\b"#,
-            #"[.!?]\s+[A-Z]"#  // Sentence structure with punctuation
-        ]
-        let lowercased = textToAnalyze.lowercased()
-        var naturalLanguageScore = 0
-        for indicator in naturalLanguageIndicators {
-            if lowercased.range(of: indicator, options: .regularExpression) != nil {
-                naturalLanguageScore += 1
+        let words = textToAnalyze.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        let totalWords = words.count
+        guard totalWords > 0 else {
+            return nil
+            }
+        var codeWordCount = 0
+        for option in codePatterns {
+            if let regex = try? NSRegularExpression(pattern: option.pattern, options: []) {
+                let matches = regex.matches(in: textToAnalyze, range: NSRange(textToAnalyze.startIndex..., in: textToAnalyze))
+                codeWordCount += matches.count
             }
         }
-        let hasMultipleSentences = textToAnalyze.filter { $0 == "." || $0 == "!" || $0 == "?" }.count >= 1
-        let wordCount = textToAnalyze.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
-        let hasProseLength = wordCount >= 8 // At least 8 words suggests prose
-        let hasArticles = lowercased.range(of: #"\b(a|an|the)\b"#, options: .regularExpression) != nil
-        if naturalLanguageScore >= 3 || (naturalLanguageScore >= 2 && (hasMultipleSentences || hasProseLength || hasArticles)) {
-            return nil
-        }
-        if naturalLanguageScore >= 2 && !hasCodeIndicators(textToAnalyze) {
+        let codeRatio = Double(codeWordCount) / Double(totalWords)
+        if codeRatio < Self.codeThreshold {
             return nil
         }
         for option in codePatterns {
@@ -187,6 +208,10 @@ struct CodeDetector {
         let text = storage.string
         storage.removeAttribute(.foregroundColor, range: fullRange)
         storage.addAttribute(.paragraphStyle, value: paragraphStyle, range: fullRange)
+        if language?.name == "JSON" {
+            applyJSONSyntaxHighlighting(to: storage, text: text, fullRange: fullRange)
+            return
+        }
         let keywordColor = NSColor.systemPurple
         let stringColor = NSColor.systemRed
         let commentColor = NSColor.systemGreen
@@ -237,4 +262,52 @@ struct CodeDetector {
             }
         }
     }
+    
+    private static func applyJSONSyntaxHighlighting(
+        to storage: NSTextStorage,
+        text: String,
+        fullRange: NSRange
+    ) {
+        let keyColor = NSColor.systemPurple        // Keys (property names)
+        let stringValueColor = NSColor.systemRed   // String values
+        let numberColor = NSColor.systemBlue       // Numbers
+        let booleanColor = NSColor.systemOrange    // true/false/null
+        let allStringsPattern = #""[^"]*""#
+        if let allStringsRegex = try? NSRegularExpression(pattern: allStringsPattern) {
+            let matches = allStringsRegex.matches(in: text, range: fullRange)
+            for match in matches {
+                storage.addAttribute(.foregroundColor, value: stringValueColor, range: match.range)
+            }
+        }
+        let keyPattern = #""[^"]+"\s*:"#
+        if let keyRegex = try? NSRegularExpression(pattern: keyPattern) {
+            let matches = keyRegex.matches(in: text, range: fullRange)
+            for match in matches {
+                let matchText = (text as NSString).substring(with: match.range)
+                if let quoteEndIndex = matchText.lastIndex(of: "\"") {
+                    let distance = matchText.distance(from: matchText.startIndex, to: quoteEndIndex)
+                    let keyRange = NSRange(location: match.range.location, length: distance + 1)
+                    storage.addAttribute(.foregroundColor, value: keyColor, range: keyRange)
+                }
+            }
+        }
+        let numberPattern = #"(?<!")(-?\d+\.?\d*)(?!")"#
+        if let numberRegex = try? NSRegularExpression(pattern: numberPattern) {
+            let matches = numberRegex.matches(in: text, range: fullRange)
+            for match in matches {
+                let currentColor = storage.attribute(.foregroundColor, at: match.range.location, effectiveRange: nil) as? NSColor
+                if currentColor != stringValueColor {
+                    storage.addAttribute(.foregroundColor, value: numberColor, range: match.range)
+                }
+            }
+        }
+        let booleanPattern = #"\b(true|false|null)\b"#
+        if let booleanRegex = try? NSRegularExpression(pattern: booleanPattern) {
+            let matches = booleanRegex.matches(in: text, range: fullRange)
+            for match in matches {
+                storage.addAttribute(.foregroundColor, value: booleanColor, range: match.range)
+            }
+        }
+    }
 }
+
