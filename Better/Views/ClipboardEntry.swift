@@ -220,29 +220,71 @@ struct ClipboardEntry: View {
                         .padding(.horizontal, -6)
                 }
             }
-            ZStack(alignment: .topLeading) {
-                VisualEffectBlur(material: .contentBackground).opacity(0.6)
+            ZStack {
+                ZStack(alignment: .topLeading) {
+                    VisualEffectBlur(material: .contentBackground).opacity(0.6)
+                    if isImage,
+                       let imageData = entry.imageData,
+                       let nsImage = NSImage(data: imageData) {
+                        AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius, showThumbnail: false)
+                    } else {
+                        WritingToolsEditor(
+                            text: $editedText,
+                            controller: writingToolsController,
+                            codeLanguage: codeLanguage
+                        )
+                        .onChange(of: editedText) {
+                            onChange(entry.id, editedText, translatedTo)
+                        }
+                    }
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(.quaternary)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .padding(.horizontal, -6)
+                .zIndex(0)
                 if isImage,
                    let imageData = entry.imageData,
                    let nsImage = NSImage(data: imageData) {
-                    AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius)
-                } else {
-                    WritingToolsEditor(
-                        text: $editedText,
-                        controller: writingToolsController,
-                        codeLanguage: codeLanguage
-                    )
-                    .onChange(of: editedText) {
-                        onChange(entry.id, editedText, translatedTo)
+                    GeometryReader { proxy in
+                        let size = proxy.size
+                        let imageSize = nsImage.size
+                        let imageAspectRatio = imageSize.width / imageSize.height
+                        let containerAspectRatio = size.width / size.height
+                        let isCropped = abs(imageAspectRatio - containerAspectRatio) > 0.01
+                        let scaleFactor = min(size.width / imageSize.width, size.height / imageSize.height)
+                        let isUpscaled = scaleFactor > 1.2
+                        if isCropped || isUpscaled {
+                            let isPortrait = imageAspectRatio < 1.0
+                            let thumbnailSize: CGSize = {
+                                if isPortrait {
+                                    let height = size.height * 1.15
+                                    let width = height * imageAspectRatio
+                                    return CGSize(width: width, height: height)
+                                } else {
+                                    let width = size.width * 1.015
+                                    let height = width / imageAspectRatio
+                                    return CGSize(width: width, height: height)
+                                }
+                            }()
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(Color(white: 0.85), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 4)
+                                .frame(width: size.width, height: size.height)
+                        }
                     }
+                    .padding(.horizontal, -6)
                 }
             }
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(.quaternary)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .padding(.horizontal, -6)
             if !isCode && editedText != entry.original {
                 Text("Original text")
                     .font(.subheadline)
@@ -548,16 +590,34 @@ private struct WindowLevelModifier: NSViewRepresentable {
 private struct AdaptiveImageContainer: View {
     let image: NSImage
     let cornerRadius: CGFloat
+    let showThumbnail: Bool
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
+            let imageSize = image.size
+            let imageAspectRatio = imageSize.width / imageSize.height
+            let containerAspectRatio = size.width / size.height
+            let isCropped = abs(imageAspectRatio - containerAspectRatio) > 0.01
+            let scaleFactor = min(size.width / imageSize.width, size.height / imageSize.height)
+            let isUpscaled = scaleFactor > 1.2
+            let shouldBlur = isCropped || isUpscaled
             ZStack {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(image.size, contentMode: .fill)
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
+                if shouldBlur {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(imageSize, contentMode: .fill)
+                        .frame(width: size.width, height: size.height)
+                        .blur(radius: 8)
+                        .brightness(-0.5)
+                        .clipped()
+                } else {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(imageSize, contentMode: .fill)
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
+                }
             }
             .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
