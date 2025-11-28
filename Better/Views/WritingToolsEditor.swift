@@ -130,7 +130,8 @@ struct WritingToolsEditor: NSViewRepresentable {
         scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = false
         textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
@@ -334,12 +335,23 @@ final class ScaledScrollView: NSScrollView {
               let textContainer = textView.textContainer else {
             return
         }
+        syncEmojiLayoutWidth(textView: textView, textContainer: textContainer)
         layoutManager.ensureLayout(for: textContainer)
         let textHeight = layoutManager.usedRect(for: textContainer).height
         let availableHeight = contentView.bounds.height
         let currentInsets = textView.textContainerInset
         let verticalInset = max(0, (availableHeight - textHeight) / 2)
         textView.textContainerInset = NSSize(width: currentInsets.width, height: verticalInset)
+    }
+    
+    private func syncEmojiLayoutWidth(textView: NSTextView, textContainer: NSTextContainer) {
+        let contentWidth = contentView.bounds.width
+        let currentSize = textView.frame.size
+        if currentSize.width != contentWidth {
+            textView.setFrameSize(NSSize(width: contentWidth, height: currentSize.height))
+        }
+        textView.minSize = NSSize(width: contentWidth, height: textView.minSize.height)
+        textContainer.containerSize = NSSize(width: contentWidth, height: CGFloat.greatestFiniteMagnitude)
     }
 
     private func updateContentViewForEmoji() {
@@ -421,4 +433,3 @@ class CenteringClipView: NSClipView {
         NotificationCenter.default.removeObserver(self)
     }
 }
-
