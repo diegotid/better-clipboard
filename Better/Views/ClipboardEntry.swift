@@ -379,16 +379,9 @@ struct ClipboardEntry: View {
                                                 object: entry.id)
             }) {
                 HStack {
-                    HStack {
-                        Image(systemName: "command")
-                        Image(systemName: "delete.left")
-                            .padding(.leading, -5)
-                    }
-                    .padding(4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(.ultraThickMaterial)
-                    )
+                    keyImage("command")
+                    keyImage("delete.left")
+                        .padding(.leading, -6)
                     Text("Delete")
                         .font(.body)
                         .padding(.trailing, 8)
@@ -409,19 +402,9 @@ struct ClipboardEntry: View {
                     translatedTo = nil
                 }) {
                     HStack {
-                        HStack {
-                            Image(systemName: "command")
-                            Text("U")
-                                .font(.callout)
-                                .padding(.leading, -5)
-                                .padding(.trailing, 1)
-                                .padding(.vertical, -3)
-                        }
-                        .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(.ultraThickMaterial)
-                        )
+                        keyImage("command")
+                        keyCharacter("U")
+                            .padding(.leading, -6)
                         Text("Back to original")
                             .font(.body)
                             .padding(.trailing, 8)
@@ -440,19 +423,9 @@ struct ClipboardEntry: View {
                     writingToolsController.showWritingToolsPanel()
                 }) {
                     HStack {
-                        HStack {
-                            Image(systemName: "command")
-                            Text("R")
-                                .font(.callout)
-                                .padding(.leading, -5)
-                                .padding(.trailing, 1)
-                                .padding(.vertical, -3)
-                        }
-                        .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(.ultraThickMaterial)
-                        )
+                        keyImage("command")
+                        keyCharacter("R")
+                            .padding(.leading, -6)
                         Text("Rewrite")
                             .font(.body)
                         Image(systemName: "sparkles")
@@ -482,19 +455,9 @@ struct ClipboardEntry: View {
                     }
                 }) {
                     HStack {
-                        HStack {
-                            Image(systemName: "command")
-                            Text("C")
-                                .font(.callout)
-                                .padding(.leading, -5)
-                                .padding(.trailing, 1)
-                                .padding(.vertical, -3)
-                        }
-                        .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(.ultraThickMaterial)
-                        )
+                        keyImage("command")
+                        keyCharacter("C")
+                            .padding(.leading, -6)
                         if showCopyConfirmation {
                             Image(systemName: "checkmark")
                                 .font(.subheadline)
@@ -534,19 +497,9 @@ struct ClipboardEntry: View {
                     }
                 }) {
                     HStack {
-                        HStack {
-                            Image(systemName: "command")
-                            Text("C")
-                                .font(.callout)
-                                .padding(.leading, -5)
-                                .padding(.trailing, 1)
-                                .padding(.vertical, -3)
-                        }
-                        .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(.ultraThickMaterial)
-                        )
+                        keyImage("command")
+                        keyCharacter("C")
+                            .padding(.leading, -6)
                         if showCopyConfirmation {
                             Image(systemName: "checkmark")
                                 .font(.subheadline)
@@ -571,12 +524,7 @@ struct ClipboardEntry: View {
             }
             Button(action: onPaste) {
                 HStack {
-                    Image(systemName: "return")
-                        .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(.ultraThickMaterial)
-                        )
+                    keyImage("return")
                     Text("Paste")
                         .font(.body)
                         .padding(.trailing, 8)
@@ -592,6 +540,33 @@ struct ClipboardEntry: View {
         }
         .buttonStyle(.borderless)
         .font(.caption)
+    }
+    
+    @ViewBuilder
+    private func keyImage(_ systemName: String) -> some View {
+        HStack {
+            Image(systemName: systemName)
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(.ultraThickMaterial)
+        )
+    }
+    
+    @ViewBuilder
+    private func keyCharacter(_ character: String) -> some View {
+        HStack {
+            Text(character)
+                .font(.callout)
+                .padding(.horizontal, 1)
+                .padding(.vertical, -3)
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(.ultraThickMaterial)
+        )
     }
 }
 

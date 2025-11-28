@@ -62,8 +62,6 @@ struct StatusOverlayBar: View {
                             HStack {
                                 HStack {
                                     Image(systemName: "command")
-                                    Image(systemName: "arrow.up")
-                                        .padding(.leading, -5)
                                 }
                                 .padding(4)
                                 .scaleEffect(0.95)
@@ -71,6 +69,16 @@ struct StatusOverlayBar: View {
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                                         .fill(.ultraThickMaterial)
                                 )
+                                HStack {
+                                    Image(systemName: "arrow.up")
+                                }
+                                .padding(4)
+                                .scaleEffect(0.95)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(.ultraThickMaterial)
+                                )
+                                .padding(.leading, -6)
                                 Text("Top")
                                     .font(.body)
                                     .padding(.trailing, 8)
