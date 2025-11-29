@@ -43,18 +43,27 @@ final class ClipboardController: ObservableObject {
                         guard !trimmed.isEmpty else {
                             return
                         }
-                        let existing = self.history.filter {
-                            $0.contentType == .text && ($0.rewritten ?? $0.original) == trimmed
-                        }.first
-                        let entry = CopiedContent(original: trimmed, date: Date(), contentType: .text)
+                        let isEmojiOnly = !trimmed.isEmpty && trimmed.allSatisfy { $0.isEmoji }
+                        let entryType: CopiedContentType = isEmojiOnly ? .emoji : .text
+                        let existing = self.history.first {
+                            $0.contentType != .image &&
+                            ($0.rewritten ?? $0.original) == trimmed
+                        }
+                        let entry = CopiedContent(original: trimmed,
+                                                  date: Date(),
+                                                  contentType: entryType,
+                                                  imageData: nil)
                         let dedupedHistory = self.history.filter {
-                            $0.contentType != .text || ($0.rewritten ?? $0.original) != trimmed
+                            $0.contentType == .image || ($0.rewritten ?? $0.original) != trimmed
                         }
                         let updated = [existing ?? entry] + dedupedHistory
                         self.history = Array(updated.prefix(self.capacity))
                     case .image(let imageData):
                         let imageName = "Image \(Date().formatted(date: .omitted, time: .shortened))"
-                        let entry = CopiedContent(original: imageName, date: Date(), contentType: .image, imageData: imageData)
+                        let entry = CopiedContent(original: imageName,
+                                                  date: Date(),
+                                                  contentType: .image,
+                                                  imageData: imageData)
                         let updated = [entry] + self.history
                         self.history = Array(updated.prefix(self.capacity))
                     }
@@ -97,5 +106,12 @@ final class ClipboardController: ObservableObject {
         entry.updateRewritten(value)
         entry.updateLanguage(language)
         history[index] = entry
+    }
+}
+
+extension Character {
+    var isEmoji: Bool {
+        guard let scalar = unicodeScalars.first else { return false }
+        return scalar.properties.isEmoji && (scalar.value > 0x238C || unicodeScalars.count > 1)
     }
 }

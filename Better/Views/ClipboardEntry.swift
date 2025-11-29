@@ -30,6 +30,7 @@ struct ClipboardEntry: View {
 
     private var isCode: Bool { codeLanguage != nil }
     private var isImage: Bool { entry.contentType == .image }
+    private var isEmoji: Bool { entry.contentType == .emoji }
     
     private let cornerRadius: CGFloat = 12
     private let thumbnailHeightScale: CGFloat = 1.08
@@ -100,6 +101,8 @@ struct ClipboardEntry: View {
                     )
                 }
                 .buttonStyle(.plain)
+            } else if isEmoji {
+                EmptyView()
             } else if isCode {
                 Button(action: {}) {
                     HStack {
@@ -234,6 +237,7 @@ struct ClipboardEntry: View {
                         WritingToolsEditor(
                             text: $editedText,
                             controller: writingToolsController,
+                            isEmoji: isEmoji,
                             codeLanguage: codeLanguage
                         )
                         .onChange(of: editedText) {
@@ -418,7 +422,7 @@ struct ClipboardEntry: View {
                 .keyboardShortcut("u", modifiers: .command)
                 .help("Back to the original copy")
             }
-            if !isImage && !isCode && entry.original == editedText {
+            if !isImage && !isCode && !isEmoji && entry.original == editedText {
                 Button(action: {
                     writingToolsController.showWritingToolsPanel()
                 }) {

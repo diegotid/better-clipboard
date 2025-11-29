@@ -915,7 +915,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         switch entry.contentType {
         case .image:
             pasteImage(entry.imageData)
-        case .text:
+        default:
             paste(entry.rewritten ?? entry.original)
         }
     }

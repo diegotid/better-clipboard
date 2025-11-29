@@ -9,6 +9,7 @@ import Foundation
 
 enum CopiedContentType: String, Codable {
     case text
+    case emoji
     case image
 }
 

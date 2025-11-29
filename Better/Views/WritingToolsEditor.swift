@@ -11,9 +11,11 @@ struct WritingToolsEditor: NSViewRepresentable {
     @Binding var text: String
     @ObservedObject var controller: WritingToolsController
     
+    let isEmoji: Bool
     let codeLanguage: ProgrammingLanguage?
-    private var isCode: Bool { codeLanguage != nil }
-    
+    private var isCode: Bool {
+        codeLanguage != nil
+    }
     private let cornerRadius: CGFloat = 12
 
     func makeCoordinator() -> Coordinator {
@@ -40,8 +42,9 @@ struct WritingToolsEditor: NSViewRepresentable {
             }
         }
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isAllEmojis = !trimmedText.isEmpty && trimmedText.allSatisfy { $0.isEmoji }
-        if isAllEmojis {
+        let isEmojiOnly = (!trimmedText.isEmpty && isEmoji)
+            || (!isEmoji && !trimmedText.isEmpty && trimmedText.allSatisfy { $0.isEmoji })
+        if isEmojiOnly {
             configureEmojiDisplay(textView: textView, scrollView: nsView, emojiCount: trimmedText.count)
         } else {
             nsView.setIsEmoji(false)
@@ -379,13 +382,6 @@ final class ScaledScrollView: NSScrollView {
         let elasticity: NSScrollView.Elasticity = isEmoji ? .none : .automatic
         verticalScrollElasticity = elasticity
         horizontalScrollElasticity = elasticity
-    }
-}
-
-extension Character {
-    var isEmoji: Bool {
-        guard let scalar = unicodeScalars.first else { return false }
-        return scalar.properties.isEmoji && (scalar.value > 0x238C || unicodeScalars.count > 1)
     }
 }
 
