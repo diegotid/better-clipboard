@@ -7,7 +7,7 @@
 
 import Foundation
 import Combine
-import AppKit
+internal import AppKit
 
 extension Notification.Name {
     static let rewriteFrontEntryRequested = Notification.Name("rewriteFrontEntryRequested")

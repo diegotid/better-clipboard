@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import AppKit
 import SwiftUI
+internal import AppKit
 
 struct CodeDetector {
     static let codeThreshold: Double = 0.1

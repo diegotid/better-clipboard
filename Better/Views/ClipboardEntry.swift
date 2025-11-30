@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+internal import AppKit
 
 struct ClipboardEntry: View {
     var entry: CopiedContent
@@ -30,6 +31,7 @@ struct ClipboardEntry: View {
 
     private var isCode: Bool { codeLanguage != nil }
     private var isImage: Bool { entry.contentType == .image }
+    private var isLink: Bool { entry.contentType == .link }
     private var isEmoji: Bool { entry.contentType == .emoji }
     
     private let cornerRadius: CGFloat = 12
@@ -80,6 +82,18 @@ struct ClipboardEntry: View {
         }
     }
     
+    private func linkDestination() -> URL? {
+        if let url = URL(string: entry.original), url.scheme != nil {
+            return url
+        }
+        if !entry.original.isEmpty,
+           entry.original.contains("."),
+           let url = URL(string: "https://\(entry.original)") {
+            return url
+        }
+        return nil
+    }
+    
     @ViewBuilder
     private func LanguageBar() -> some View {
         HStack(spacing: 2) {
@@ -101,7 +115,7 @@ struct ClipboardEntry: View {
                     )
                 }
                 .buttonStyle(.plain)
-            } else if isEmoji {
+            } else if isEmoji || isLink {
                 EmptyView()
             } else if isCode {
                 Button(action: {}) {
@@ -233,6 +247,8 @@ struct ClipboardEntry: View {
                        let imageData = entry.imageData,
                        let nsImage = NSImage(data: imageData) {
                         AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius)
+                    } else if isLink, let url = URL(string: entry.original) {
+                        LinkCard(url: url, metatags: entry.linkMetatags)
                     } else {
                         WritingToolsEditor(
                             text: $editedText,
@@ -422,7 +438,7 @@ struct ClipboardEntry: View {
                 .keyboardShortcut("u", modifiers: .command)
                 .help("Back to the original copy")
             }
-            if !isImage && !isCode && !isEmoji && entry.original == editedText {
+            if !isImage && !isLink && !isCode && !isEmoji && entry.original == editedText {
                 Button(action: {
                     writingToolsController.showWritingToolsPanel()
                 }) {
@@ -445,6 +461,29 @@ struct ClipboardEntry: View {
                 }
                 .keyboardShortcut("r", modifiers: .command)
                 .help("Rewrite this copy")
+            }
+            if isLink {
+                Button(action: {
+                    if let url = linkDestination() {
+                        NSWorkspace.shared.open(url)
+                    }
+                }) {
+                    HStack {
+                        keyImage("command")
+                        keyCharacter("F")
+                            .padding(.leading, -6)
+                        Text("Follow link")
+                            .font(.body)
+                            .padding(.trailing, 8)
+                    }
+                    .padding(3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.secondary.opacity(0.6))
+                    )
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                .help("Follow this link")
             }
             if !isImage && (isCode || entry.original != editedText) {
                 Button(action: {

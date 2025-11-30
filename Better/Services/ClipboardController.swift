@@ -18,6 +18,7 @@ final class ClipboardController: ObservableObject {
     
     private let capacity: Int = 30
     private let watcher = ClipboardWatcher()
+    private let linkFetcher = LinkMetadataFetcher()
     private let historyFileURL: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let folder = dir.appendingPathComponent("Better", isDirectory: true)
@@ -43,21 +44,31 @@ final class ClipboardController: ObservableObject {
                         guard !trimmed.isEmpty else {
                             return
                         }
+                        if let url = self.linkFetcher.detectURL(in: trimmed) {
+                            let entry = CopiedContent(original: trimmed,
+                                                      date: Date(),
+                                                      contentType: .link,
+                                                      linkMetatags: nil,
+                                                      imageData: nil)
+                            self.insert(entry: entry)
+                            Task.detached { [weak self] in
+                                guard let self else { return }
+                                let meta = await self.linkFetcher.fetchLinkMetatags(for: url)
+                                await MainActor.run {
+                                    if let meta {
+                                        self.updateLinkMetadata(for: entry.id, metatags: meta)
+                                    }
+                                }
+                            }
+                            return
+                        }
                         let isEmojiOnly = !trimmed.isEmpty && trimmed.allSatisfy { $0.isEmoji }
                         let entryType: CopiedContentType = isEmojiOnly ? .emoji : .text
-                        let existing = self.history.first {
-                            $0.contentType != .image &&
-                            ($0.rewritten ?? $0.original) == trimmed
-                        }
                         let entry = CopiedContent(original: trimmed,
                                                   date: Date(),
                                                   contentType: entryType,
                                                   imageData: nil)
-                        let dedupedHistory = self.history.filter {
-                            $0.contentType == .image || ($0.rewritten ?? $0.original) != trimmed
-                        }
-                        let updated = [existing ?? entry] + dedupedHistory
-                        self.history = Array(updated.prefix(self.capacity))
+                        self.insert(entry: entry)
                     case .image(let imageData):
                         let imageName = "Image \(Date().formatted(date: .omitted, time: .shortened))"
                         let entry = CopiedContent(original: imageName,
@@ -105,6 +116,25 @@ final class ClipboardController: ObservableObject {
         var entry = history[index]
         entry.updateRewritten(value)
         entry.updateLanguage(language)
+        history[index] = entry
+    }
+    
+    private func insert(entry: CopiedContent) {
+        let existing = history.first {
+            $0.contentType != .image &&
+            ($0.rewritten ?? $0.original) == entry.original
+        }
+        let dedupedHistory = history.filter {
+            $0.contentType == .image || ($0.rewritten ?? $0.original) != entry.original
+        }
+        let updated = [existing ?? entry] + dedupedHistory
+        history = Array(updated.prefix(capacity))
+    }
+    
+    private func updateLinkMetadata(for id: UUID, metatags: LinkMetatags) {
+        guard let index = history.firstIndex(where: { $0.id == id }) else { return }
+        var entry = history[index]
+        entry.linkMetatags = metatags
         history[index] = entry
     }
 }

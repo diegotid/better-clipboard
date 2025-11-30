@@ -5,7 +5,7 @@
 //  Created by Diego Rivera on 2/11/25.
 //
 
-import AppKit
+internal import AppKit
 
 enum ClipboardContent {
     case text(String)

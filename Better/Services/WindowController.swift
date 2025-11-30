@@ -6,10 +6,10 @@
 //
 
 import SwiftUI
-import AppKit
 import Carbon.HIToolbox
 import Combine
 import QuartzCore
+internal import AppKit
 
 private let escapeKeyCode: Int = 53
 private let returnKeyCode: UInt16 = 36
