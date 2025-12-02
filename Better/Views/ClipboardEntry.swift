@@ -28,6 +28,7 @@ struct ClipboardEntry: View {
     @State private var showingTranslationHelp = false
     @State private var codeLanguage: ProgrammingLanguage? = nil
     @State private var showCopyConfirmation = false
+    @State private var localIsPinned: Bool
 
     private var isCode: Bool { codeLanguage != nil }
     private var isImage: Bool { entry.contentType == .image }
@@ -55,6 +56,7 @@ struct ClipboardEntry: View {
         _editedText = State(initialValue: entry.rewritten ?? entry.original)
         _textLanguage = State(initialValue: entry.translatedTo)
         _translatedTo = State(initialValue: entry.translatedTo)
+        _localIsPinned = State(initialValue: entry.isPinned)
     }
         
     var formattedDate: String {
@@ -95,7 +97,39 @@ struct ClipboardEntry: View {
     }
     
     @ViewBuilder
-    private func LanguageBar() -> some View {
+    private func pinButton() -> some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                localIsPinned.toggle()
+            }
+            NotificationCenter.default.post(name: .toggleEntryPinnedRequested,
+                                            object: entry.id)
+        }) {
+            HStack {
+                keyImage("command")
+                    .scaleEffect(0.85)
+                keyCharacter("P")
+                    .padding(.leading, -6)
+                Image(systemName: localIsPinned ? "pin.slash.fill" : "pin")
+                    .font(.subheadline)
+                    .foregroundStyle(localIsPinned ? .white : .primary)
+                    .padding(.trailing, 6)
+            }
+            .padding(1)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(localIsPinned
+                          ? AnyShapeStyle(Color.accentColor.opacity(0.9))
+                          : AnyShapeStyle(.secondary.opacity(0.3)))
+            )
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("p", modifiers: .command)
+        .help(localIsPinned ? "Unpin" : "Pin")
+    }
+    
+    @ViewBuilder
+    private func languageBar() -> some View {
         HStack(spacing: 2) {
             if isImage {
                 Button(action: {}) {
@@ -168,17 +202,19 @@ struct ClipboardEntry: View {
                 }
             } else {
                 ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
-                    LanguageButton(
+                    languageButton(
                         language: item.element,
                         index: languageContext.languages.firstIndex(of: item.element) ?? 0
                     )
                 }
             }
         }
+        .padding(.top, 7)
+        .padding(.trailing, 7)
     }
     
     @ViewBuilder
-    private func LanguageButton(
+    private func languageButton(
         language: Locale.Language,
         index: Int
     ) -> some View {
@@ -231,11 +267,11 @@ struct ClipboardEntry: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Copied \(formattedDate)")
-                    .font(.subheadline)
+                pinButton()
+                Text(localIsPinned ? "Pinned" : "Copied \(formattedDate)")
                 Spacer()
                 if isFrontMost {
-                    LanguageBar()
+                    languageBar()
                         .padding(.top, -6)
                         .padding(.horizontal, -6)
                 }
@@ -330,7 +366,6 @@ struct ClipboardEntry: View {
             }
             if !isCode && editedText != entry.original {
                 Text("Original text")
-                    .font(.subheadline)
                 Text(entry.original)
                     .foregroundStyle(.secondary)
             }
@@ -362,6 +397,11 @@ struct ClipboardEntry: View {
         }
         .onDisappear {
             writingToolsController.onUnavailable = nil
+        }
+        .onChange(of: entry.isPinned) { _, newValue in
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                localIsPinned = newValue
+            }
         }
         .onChange(of: isFrontMost) { _, newValue in
             if newValue && !isImage {
@@ -470,7 +510,7 @@ struct ClipboardEntry: View {
                 }) {
                     HStack {
                         keyImage("command")
-                        keyCharacter("F")
+                        keyCharacter("W")
                             .padding(.leading, -6)
                         Text("Follow link")
                             .font(.body)
@@ -482,7 +522,7 @@ struct ClipboardEntry: View {
                             .fill(.secondary.opacity(0.6))
                     )
                 }
-                .keyboardShortcut("f", modifiers: .command)
+                .keyboardShortcut("w", modifiers: .command)
                 .help("Follow this link")
             }
             if !isImage && (isCode || entry.original != editedText) {
@@ -599,17 +639,15 @@ struct ClipboardEntry: View {
     
     @ViewBuilder
     private func keyCharacter(_ character: String) -> some View {
-        HStack {
-            Text(character)
-                .font(.callout)
-                .padding(.horizontal, 1)
-                .padding(.vertical, -3)
-        }
-        .padding(4)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(.ultraThickMaterial)
-        )
+        Text(character)
+            .font(.callout)
+            .padding(.top, 1)
+            .padding(.bottom, 2)
+            .padding(.horizontal, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.ultraThickMaterial)
+            )
     }
 }
 

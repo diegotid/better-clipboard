@@ -20,7 +20,7 @@ private let opacityStep: CGFloat = 0.2
 private let scaleStep: CGFloat = 0.1
 private let windowSize = NSSize(width: 500, height: 350)
 private let statusOverlayHeight: Int = 48
-private let statusOverlayWidth: Int = 360
+private let statusOverlayWidth: Int = 500
 private let statusSideControlWidth: Int = 72
 
 @MainActor
@@ -42,6 +42,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var statusOverlayBar: NSWindow?
     private var statusOverlayHostingController: NSHostingController<StatusOverlayBar>?
     private var statusOverlaySearchObserver: AnyCancellable?
+    private var statusOverlayFilterObserver: AnyCancellable?
     private let statusOverlayContext = StatusOverlayContext()
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
@@ -49,16 +50,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var showingWindows: Bool {
         windows.contains(where: { $0.window.isVisible })
     }
-    private func updateBaseHistory(_ history: [CopiedContent]) {
-        baseHistory = history
-        entryIndexLookup = Dictionary(uniqueKeysWithValues: history.enumerated().map { ($0.element.id, $0.offset) })
-    }
     private var filteredEntries: [CopiedContent] {
         let lowercasedSearch = searchText.lowercased()
-        if lowercasedSearch.isEmpty {
-            return baseHistory
+        let base = statusOverlayContext.filterPinned ? baseHistory.filter { $0.isPinned } : baseHistory
+        guard !lowercasedSearch.isEmpty else {
+            return base
         }
-        return baseHistory.filter { entry in
+        return base.filter { entry in
             entry.original.lowercased().contains(lowercasedSearch)
         }
     }
@@ -124,6 +122,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
             .sink { [weak self] newValue in
                 self?.handleSearchTextChange(newValue)
             }
+        statusOverlayFilterObserver = statusOverlayContext.$filterPinned
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newValue in
+                self?.handleFilterPinnedChange(newValue)
+            }
         deleteRequestObserver = NotificationCenter.default.addObserver(
             forName: .deleteFrontEntryRequested,
             object: nil,
@@ -133,6 +137,17 @@ final class WindowController: NSObject, NSMenuItemValidation {
             let entryID = notification.object as? UUID
             Task { @MainActor in
                 self.deleteFrontEntry(requestedID: entryID)
+            }
+        }
+        _ = NotificationCenter.default.addObserver(
+            forName: .toggleEntryPinnedRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 10_000_000) // 0.01 seconds
+                self.refreshEntriesAfterPinToggle()
             }
         }
         resignActiveObserver = NotificationCenter.default.addObserver(
@@ -166,6 +181,14 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
         }
     }
+    
+    func presentInitialWindowsIfNeeded() {
+        guard hasPresentedInitialWindows == false else {
+            return
+        }
+        hasPresentedInitialWindows = true
+        showWindows(presentEmptyAlert: false, captureLastApp: false)
+    }
 
     private enum RotationDirection {
         case older
@@ -180,16 +203,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
             showWindows()
         }
     }
-
-    func presentInitialWindowsIfNeeded() {
-        guard hasPresentedInitialWindows == false else {
-            return
-        }
-        hasPresentedInitialWindows = true
-        showWindows(presentEmptyAlert: false, captureLastApp: false)
-    }
     
-    func handlePasteFrontEntry() {
+    private func pasteFrontMost() {
         guard let _ = windows.first,
               let frontEntry = entries.first else {
             closeWindows()
@@ -212,8 +227,15 @@ final class WindowController: NSObject, NSMenuItemValidation {
         layoutWindows(animated: false)
     }
     
-    func handleCopyEntry(_ final: String) {
+    private func handleCopyEntry(_ final: String) {
         copy(final)
+    }
+    
+    private func updateBaseHistory(_ history: [CopiedContent]) {
+        baseHistory = history
+        entryIndexLookup = Dictionary(uniqueKeysWithValues: history.enumerated().map {
+            ($0.element.id, $0.offset)
+        })
     }
 
     private func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
@@ -448,6 +470,48 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         clipboard.saveHistory()
     }
+    
+    private func refreshEntriesAfterPinToggle() {
+        guard showingWindows else { return }
+        let updatedHistory = clipboard.history
+        updateBaseHistory(updatedHistory)
+        let filtered = filteredEntries
+        let currentIDs = Set(entries.map(\.id))
+        let filteredIDs = Set(filtered.map(\.id))
+        if currentIDs != filteredIDs {
+            let previousWindows = windows
+            entries = filtered
+            windows = filtered.map { createWindow(for: $0) }
+            closeWindowPairs(previousWindows)
+            layoutWindows(animated: true)
+        } else {
+            for (index, entry) in entries.enumerated() {
+                if let updatedEntry = filtered.first(where: { $0.id == entry.id }) {
+                    entries[index] = updatedEntry
+                }
+            }
+            for (index, pair) in windows.enumerated() {
+                if index < entries.count {
+                    let updatedEntry = entries[index]
+                    let isFrontMost = index == 0
+                    let newView = AnyView(
+                        ClipboardEntry(
+                            entry: updatedEntry,
+                            isFrontMost: isFrontMost,
+                            onChange: { [weak self] id, text, language in
+                                self?.handleEntryUpdate(id: id, text: text, language: language)
+                            },
+                            onPaste: pasteFrontMost,
+                            onCopy: handleCopyEntry,
+                            languageContext: languageContext
+                        ).environment(\.translator, translator)
+                    )
+                    pair.host.rootView = newView
+                }
+            }
+            layoutWindows(animated: true)
+        }
+    }
 
     private func createWindow(for entry: CopiedContent) -> (NSWindow, NSHostingController<AnyView>) {
         let entryView = AnyView(
@@ -457,7 +521,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
                 onChange: { [weak self] id, text, language in
                     self?.handleEntryUpdate(id: id, text: text, language: language)
                 },
-                onPaste: handlePasteFrontEntry,
+                onPaste: pasteFrontMost,
                 onCopy: handleCopyEntry,
                 languageContext: languageContext
             ).environment(\.translator, translator)
@@ -590,7 +654,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
                                                            text: text,
                                                            language: language)
                                },
-                               onPaste: handlePasteFrontEntry,
+                               onPaste: pasteFrontMost,
                                onCopy: handleCopyEntry,
                                languageContext: languageContext)
                 .environment(\.translator, translator)
@@ -796,48 +860,53 @@ final class WindowController: NSObject, NSMenuItemValidation {
             guard !self.windows.isEmpty else {
                 return event
             }
-            if event.keyCode == UInt16(kVK_UpArrow),
-               event.modifierFlags.contains(.command) {
-                NotificationCenter.default.post(name: .wrapToFirstEntryRequested,
-                                                object: nil)
-                return nil
-            }
             switch event.keyCode {
+            case returnKeyCode:
+                self.pasteFrontMost()
+                return nil
+            case uint16(kVK_UpArrow):
+                if event.modifierFlags.contains(.command) {
+                    NotificationCenter.default.post(name: .wrapToFirstEntryRequested,
+                                                    object: nil)
+                } else {
+                    self.rotateWheel(direction: .newer)
+                }
+                return nil
             case UInt16(kVK_DownArrow):
                 self.rotateWheel(direction: .older)
-                return nil
-            case UInt16(kVK_UpArrow):
-                self.rotateWheel(direction: .newer)
                 return nil
             case UInt16(kVK_Delete):
                 if event.modifierFlags.contains(.command) {
                     self.deleteFrontEntry()
                     return nil
                 }
-                return event
             case UInt16(escapeKeyCode):
                 if self.clearSearchTextIfNeeded() == false {
                     self.closeWindows()
+                    return nil
                 }
-                return nil
-            case returnKeyCode:
-                self.handlePasteFrontEntry()
-                return nil
             case UInt16(kVK_ANSI_R):
                 if event.modifierFlags.contains(.command) {
-                    self.triggerRewriteShortcut()
+                    self.rewriteFrontMost()
                     return nil
                 }
-                return event
             case UInt16(kVK_ANSI_F):
                 if event.modifierFlags.contains(.command) {
-                    self.triggerSearchShortcut()
+                    self.focusSearchBar()
                     return nil
                 }
-                return event
-            default:
-                return event
+            case UInt16(kVK_ANSI_P):
+                if event.modifierFlags.contains(.command) {
+                    if event.modifierFlags.contains(.shift) {
+                        togglePinFilter()
+                    } else {
+                        toggleFrontMostPinned()
+                    }
+                    return nil
+                }
+            default: break
             }
+            return event
         }
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             guard let self else {
@@ -882,14 +951,27 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return hitView.isDescendantOfScrollableEditor
     }
 
-    private func triggerRewriteShortcut() {
+    private func rewriteFrontMost() {
         guard let frontEntry = entries.first else {
             return
         }
-        NotificationCenter.default.post(name: .rewriteFrontEntryRequested, object: frontEntry.id)
+        NotificationCenter.default.post(name: .rewriteFrontEntryRequested,
+                                        object: frontEntry.id)
     }
-
-    private func triggerSearchShortcut() {
+    
+    private func toggleFrontMostPinned() {
+        guard let frontEntry = entries.first else {
+            return
+        }
+        NotificationCenter.default.post(name: .toggleEntryPinnedRequested,
+                                        object: frontEntry.id)
+    }
+    
+    private func togglePinFilter() {
+        statusOverlayContext.filterPinned.toggle()
+    }
+    
+    private func focusSearchBar() {
         guard showingWindows else {
             return
         }
@@ -903,6 +985,18 @@ final class WindowController: NSObject, NSMenuItemValidation {
             return
         }
         searchText = newValue
+        let previousWindows = windows
+        entries = filteredEntries
+        windows = filteredEntries.map { createWindow(for: $0) }
+        closeWindowPairs(previousWindows)
+        layoutWindows(animated: false)
+        updateToggleMenuTitle()
+    }
+    
+    private func handleFilterPinnedChange(_ newValue: Bool) {
+        guard statusOverlayContext.filterPinned == newValue else {
+            return
+        }
         let previousWindows = windows
         entries = filteredEntries
         windows = filteredEntries.map { createWindow(for: $0) }

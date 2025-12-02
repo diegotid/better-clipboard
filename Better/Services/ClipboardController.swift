@@ -29,6 +29,15 @@ final class ClipboardController: ObservableObject {
     init() {
         loadHistory()
         start()
+        NotificationCenter.default.addObserver(forName: .toggleEntryPinnedRequested, object: nil, queue: .main) { [weak self] notification in
+            guard let self,
+                  let targetID = notification.object as? UUID else {
+                return
+            }
+            Task { @MainActor in
+                self.togglePin(for: targetID)
+            }
+        }
     }
 
     func start() {
@@ -137,6 +146,13 @@ final class ClipboardController: ObservableObject {
         entry.linkMetatags = metatags
         history[index] = entry
     }
+    
+    private func togglePin(for id: UUID) {
+        guard let index = history.firstIndex(where: { $0.id == id }) else { return }
+        var entry = history[index]
+        entry.isPinned.toggle()
+        history[index] = entry
+    }
 }
 
 extension Character {
@@ -145,3 +161,4 @@ extension Character {
         return scalar.properties.isEmoji && (scalar.value > 0x238C || unicodeScalars.count > 1)
     }
 }
+

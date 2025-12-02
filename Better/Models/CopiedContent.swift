@@ -19,6 +19,7 @@ struct CopiedContent: Identifiable, Codable, Hashable {
     let date: Date
     let original: String
     let contentType: CopiedContentType
+    var isPinned: Bool
     var linkMetatags: LinkMetatags?
     let imageData: Data?
     
@@ -37,6 +38,7 @@ struct CopiedContent: Identifiable, Codable, Hashable {
         self.date = date
         self.original = original
         self.contentType = contentType
+        self.isPinned = false
         self.linkMetatags = linkMetatags
         self.imageData = imageData
     }
@@ -45,8 +47,9 @@ struct CopiedContent: Identifiable, Codable, Hashable {
         case id
         case date
         case original
-        case linkMetatags
         case contentType
+        case isPinned
+        case linkMetatags
         case imageData
         case rewritten
         case translatedTo
@@ -58,6 +61,7 @@ struct CopiedContent: Identifiable, Codable, Hashable {
         date = try container.decode(Date.self, forKey: .date)
         original = try container.decode(String.self, forKey: .original)
         contentType = try container.decodeIfPresent(CopiedContentType.self, forKey: .contentType) ?? .text
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
         linkMetatags = try container.decodeIfPresent(LinkMetatags.self, forKey: .linkMetatags)
         imageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
         rewritten = try container.decodeIfPresent(String.self, forKey: .rewritten)
@@ -70,6 +74,7 @@ struct CopiedContent: Identifiable, Codable, Hashable {
         try container.encode(date, forKey: .date)
         try container.encode(original, forKey: .original)
         try container.encode(contentType, forKey: .contentType)
+        try container.encode(isPinned, forKey: .isPinned)
         try container.encode(linkMetatags, forKey: .linkMetatags)
         try container.encode(imageData, forKey: .imageData)
         try container.encode(rewritten, forKey: .rewritten)
@@ -82,6 +87,14 @@ struct CopiedContent: Identifiable, Codable, Hashable {
     
     mutating func updateLanguage(_ value: Locale.Language?) {
         translatedTo = value
+    }
+    
+    mutating func pin() {
+        isPinned = true
+    }
+    
+    mutating func unpin() {
+        isPinned = false
     }
 }
 

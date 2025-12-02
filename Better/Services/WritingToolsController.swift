@@ -13,6 +13,7 @@ extension Notification.Name {
     static let rewriteFrontEntryRequested = Notification.Name("rewriteFrontEntryRequested")
     static let deleteFrontEntryRequested = Notification.Name("deleteFrontEntryRequested")
     static let wrapToFirstEntryRequested = Notification.Name("wrapToFirstEntryRequested")
+    static let toggleEntryPinnedRequested = Notification.Name("toggleEntryPinnedRequested")
     static let searchEntriesRequested = Notification.Name("searchEntriesRequested")
     static let translationRequested = Notification.Name("translationRequested")
 }
