@@ -45,6 +45,12 @@ struct StatusOverlayBar: View {
             .focusable(false)
             Spacer()
             if isSearching {
+                if context.totalCount == 0 {
+                    Text("No results")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.trailing, 12)
+                }
                 Button {
                     context.searchText = ""
                 } label: {
@@ -60,10 +66,16 @@ struct StatusOverlayBar: View {
                     if shouldShowWrapButton {
                         goTopButton()
                     }
-                    Text("\(context.currentIndex) of \(context.totalCount)")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .fixedSize()
+                    if context.totalCount == 0 && context.filterPinned {
+                        Text("No pinned entries")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    } else if context.totalCount > 0 {
+                        Text("\(context.currentIndex) of \(context.totalCount)")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .fixedSize()
+                    }
                 }
             }
             toggleFilterPinnedButton()

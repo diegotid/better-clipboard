@@ -608,6 +608,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
 
     private func layoutWindows(animated: Bool) {
         guard !windows.isEmpty, windows.count == entries.count else {
+            if windows.isEmpty {
+                statusOverlayContext.update(index: 0, total: 0)
+                hideStatusOverlayBar()
+            }
             return
         }
         guard let screen = NSScreen.main ?? NSScreen.screens.first else {
@@ -994,7 +998,31 @@ final class WindowController: NSObject, NSMenuItemValidation {
         entries = filteredEntries
         windows = filteredEntries.map { createWindow(for: $0) }
         closeWindowPairs(previousWindows)
-        layoutWindows(animated: false)
+        if entries.isEmpty {
+            statusOverlayContext.update(index: 0, total: 0)
+            let (overlayWindow, _) = statusOverlayComponents()
+            if let _ = NSScreen.main ?? NSScreen.screens.first,
+               let firstPreviousWindow = previousWindows.first?.window {
+                let firstWindowFrame = firstPreviousWindow.frame
+                let origin = NSPoint(
+                    x: firstWindowFrame.midX - CGFloat(statusOverlayWidth) / 2,
+                    y: firstWindowFrame.maxY + 40
+                )
+                overlayWindow.setFrame(NSRect(origin: origin, size: NSSize(width: statusOverlayWidth, height: statusOverlayHeight)), display: true)
+                if !overlayWindow.isVisible {
+                    overlayWindow.alphaValue = 0
+                    overlayWindow.makeKeyAndOrderFront(nil)
+                    NSAnimationContext.runAnimationGroup({ context in
+                        context.duration = 0.18
+                        overlayWindow.animator().alphaValue = 1
+                    })
+                } else {
+                    overlayWindow.makeKeyAndOrderFront(nil)
+                }
+            }
+        } else {
+            layoutWindows(animated: false)
+        }
         updateToggleMenuTitle()
     }
     
@@ -1002,11 +1030,38 @@ final class WindowController: NSObject, NSMenuItemValidation {
         guard statusOverlayContext.filterPinned == newValue else {
             return
         }
-        let previousWindows = windows
-        entries = filteredEntries
-        windows = filteredEntries.map { createWindow(for: $0) }
-        closeWindowPairs(previousWindows)
-        layoutWindows(animated: false)
+        if newValue && filteredEntries.isEmpty {
+            for (window, _) in windows {
+                window.orderOut(nil)
+            }
+            statusOverlayContext.update(index: 0, total: 0)
+            let (overlayWindow, _) = statusOverlayComponents()
+            if let _ = NSScreen.main ?? NSScreen.screens.first,
+               let firstWindow = windows.first?.window {
+                let firstWindowFrame = firstWindow.frame
+                let origin = NSPoint(
+                    x: firstWindowFrame.midX - CGFloat(statusOverlayWidth) / 2,
+                    y: firstWindowFrame.maxY + 40
+                )
+                overlayWindow.setFrame(NSRect(origin: origin, size: NSSize(width: statusOverlayWidth, height: statusOverlayHeight)), display: true)
+                if !overlayWindow.isVisible {
+                    overlayWindow.alphaValue = 0
+                    overlayWindow.makeKeyAndOrderFront(nil)
+                    NSAnimationContext.runAnimationGroup({ context in
+                        context.duration = 0.18
+                        overlayWindow.animator().alphaValue = 1
+                    })
+                } else {
+                    overlayWindow.makeKeyAndOrderFront(nil)
+                }
+            }
+        } else {
+            let previousWindows = windows
+            entries = filteredEntries
+            windows = filteredEntries.map { createWindow(for: $0) }
+            closeWindowPairs(previousWindows)
+            layoutWindows(animated: false)
+        }
         updateToggleMenuTitle()
     }
 
