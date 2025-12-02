@@ -255,6 +255,11 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         updateBaseHistory(history)
         entries = filteredEntries
+        if entries.isEmpty && !history.isEmpty {
+            searchText = ""
+            statusOverlayContext.searchText = ""
+            entries = filteredEntries
+        }
         windows = filteredEntries.map { createWindow(for: $0) }
         layoutWindows(animated: false)
         installEventMonitors()
