@@ -1061,14 +1061,17 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         beginEntriesUpdate()
         defer { finishEntriesUpdate() }
-        if newValue && filteredEntries.isEmpty {
-            for (window, _) in windows {
+        let previousWindows = windows
+        let previousEntries = entries
+        entries = filteredEntries
+        if newValue && entries.isEmpty {
+            for (window, _) in previousWindows {
                 window.orderOut(nil)
             }
             statusOverlayContext.update(index: 0, total: 0)
             let (overlayWindow, _) = statusOverlayComponents()
             if let _ = NSScreen.main ?? NSScreen.screens.first,
-               let firstWindow = windows.first?.window {
+               let firstWindow = previousWindows.first?.window {
                 let firstWindowFrame = firstWindow.frame
                 let origin = NSPoint(
                     x: firstWindowFrame.midX - CGFloat(statusOverlayWidth) / 2,
@@ -1086,10 +1089,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
                     overlayWindow.makeKeyAndOrderFront(nil)
                 }
             }
+        } else if !newValue && previousEntries.isEmpty && entries.isEmpty {
+            statusOverlayContext.update(index: 0, total: 0)
         } else {
-            let previousWindows = windows
-            entries = filteredEntries
-            windows = filteredEntries.map { createWindow(for: $0) }
+            windows = entries.map { createWindow(for: $0) }
             closeWindowPairs(previousWindows)
             layoutWindows(animated: false)
         }
