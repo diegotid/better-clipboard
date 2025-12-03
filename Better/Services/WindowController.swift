@@ -43,10 +43,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var statusOverlayHostingController: NSHostingController<StatusOverlayBar>?
     private var statusOverlaySearchObserver: AnyCancellable?
     private var statusOverlayFilterObserver: AnyCancellable?
+    private var statusOverlaySearchImmediateObserver: AnyCancellable?
     private let statusOverlayContext = StatusOverlayContext()
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
     private var searchText: String = ""
+    private var entriesUpdateResetTask: DispatchWorkItem?
     private var showingWindows: Bool {
         windows.contains(where: { $0.window.isVisible })
     }
@@ -115,6 +117,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
         configureStatusBarItem()
         registerHotKey()
         statusOverlayContext.setSearchTextIfNeeded(searchText)
+        statusOverlaySearchImmediateObserver = statusOverlayContext.$searchText
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.beginEntriesUpdate()
+            }
         statusOverlaySearchObserver = statusOverlayContext.$searchText
             .removeDuplicates()
             .debounce(for: .seconds(1), scheduler: RunLoop.main)
@@ -282,6 +291,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
             NSEvent.removeMonitor(monitor)
             scrollMonitor = nil
         }
+        entriesUpdateResetTask?.cancel()
+        statusOverlayContext.setUpdatingEntries(false)
         hideStatusOverlayBar()
         updateToggleMenuTitle()
     }
@@ -475,9 +486,11 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         clipboard.saveHistory()
     }
-    
+
     private func refreshEntriesAfterPinToggle() {
         guard showingWindows else { return }
+        beginEntriesUpdate()
+        defer { finishEntriesUpdate() }
         let updatedHistory = clipboard.history
         updateBaseHistory(updatedHistory)
         let filtered = filteredEntries
@@ -989,10 +1002,26 @@ final class WindowController: NSObject, NSMenuItemValidation {
         NotificationCenter.default.post(name: .searchEntriesRequested, object: nil)
     }
 
+    private func beginEntriesUpdate() {
+        entriesUpdateResetTask?.cancel()
+        statusOverlayContext.setUpdatingEntries(true)
+    }
+
+    private func finishEntriesUpdate(after delay: TimeInterval = 0.0) {
+        entriesUpdateResetTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in
+            self?.statusOverlayContext.setUpdatingEntries(false)
+        }
+        entriesUpdateResetTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: task)
+    }
+
     private func handleSearchTextChange(_ newValue: String) {
         guard searchText != newValue else {
             return
         }
+        beginEntriesUpdate()
+        defer { finishEntriesUpdate() }
         searchText = newValue
         let previousWindows = windows
         entries = filteredEntries
@@ -1030,6 +1059,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
         guard statusOverlayContext.filterPinned == newValue else {
             return
         }
+        beginEntriesUpdate()
+        defer { finishEntriesUpdate() }
         if newValue && filteredEntries.isEmpty {
             for (window, _) in windows {
                 window.orderOut(nil)
@@ -1063,6 +1094,9 @@ final class WindowController: NSObject, NSMenuItemValidation {
             layoutWindows(animated: false)
         }
         updateToggleMenuTitle()
+        if newValue == false {
+            statusOverlayContext.setUpdatingEntries(false)
+        }
     }
 
     private func paste(entry: CopiedContent) {

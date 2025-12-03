@@ -12,6 +12,7 @@ final class StatusOverlayContext: ObservableObject {
     @Published var totalCount: Int = 1
     @Published var searchText: String = ""
     @Published var filterPinned: Bool = false
+    @Published var isUpdatingEntries: Bool = false
 
     func update(index: Int, total: Int) {
         if currentIndex != index {
@@ -25,6 +26,12 @@ final class StatusOverlayContext: ObservableObject {
     func setSearchTextIfNeeded(_ value: String) {
         if searchText != value {
             searchText = value
+        }
+    }
+
+    func setUpdatingEntries(_ value: Bool) {
+        if isUpdatingEntries != value {
+            isUpdatingEntries = value
         }
     }
 }

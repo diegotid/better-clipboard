@@ -15,6 +15,9 @@ struct StatusOverlayBar: View {
     @FocusState private var searchFieldFocused: Bool
     @State private var hasAppeared = false
 
+    private let borderCornerRadius: CGFloat = 22
+    private let glowPeriod: TimeInterval = 2.4
+
     private var isSearching: Bool {
         context.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
@@ -84,6 +87,12 @@ struct StatusOverlayBar: View {
         .padding(.trailing, 12)
         .padding(.vertical, 12)
         .frame(width: CGFloat(width), alignment: .leading)
+        .overlay(alignment: .center) {
+            borderBackground
+        }
+        .overlay(alignment: .center) {
+            glowBorder
+        }
         .onAppear {
             searchFieldFocused = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -101,6 +110,96 @@ struct StatusOverlayBar: View {
             }
             onWrapToFirst()
         }
+    }
+    
+    private var borderBackground: some View {
+        RoundedRectangle(cornerRadius: borderCornerRadius, style: .continuous)
+            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            .padding(1)
+            .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private var glowBorder: some View {
+        if shouldShowGlow {
+            TimelineView(.animation) { timeline in
+                let elapsed = timeline.date.timeIntervalSinceReferenceDate
+                let progress = (elapsed.truncatingRemainder(dividingBy: glowPeriod)) / glowPeriod
+                let start = CGFloat(progress)
+                let span: CGFloat = 0.35
+                let end = start + span
+                let pulse = 1.0 + 0.08 * sin(elapsed * 2 * .pi / 1.3)
+                ZStack {
+                    RoundedRectangle(cornerRadius: borderCornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 3.4)
+                        .padding(-7)
+                        .blur(radius: 14)
+                        .scaleEffect(pulse)
+                        .opacity(0.9)
+                        .shadow(color: Color.white.opacity(0.8), radius: 16)
+                    glowSegment(start: start, end: end, lineWidth: 3.2)
+                        .padding(-5)
+                        .shadow(color: Color.white.opacity(0.9), radius: 16)
+                    glowSegment(start: start + 0.18, end: end + 0.12, lineWidth: 2.2)
+                        .opacity(0.9)
+                        .padding(-4)
+                        .shadow(color: Color.white.opacity(0.95), radius: 14)
+                }
+                .padding(1)
+                .transition(.opacity.combined(with: .scale))
+                .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var shouldShowGlow: Bool {
+        guard context.isUpdatingEntries else {
+            return false
+        }
+        let isFocusedWithoutText = searchFieldFocused && context.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !isFocusedWithoutText
+    }
+
+    private func glowSegment(start: CGFloat, end: CGFloat, lineWidth: CGFloat) -> some View {
+        let gradient = AngularGradient(
+            colors: [
+                Color.white.opacity(0.95),
+                Color.white.opacity(0.4),
+                Color.white.opacity(0.1),
+                Color.white.opacity(0.95)
+            ],
+            center: .center
+        )
+        let normalizedStart = start.truncatingRemainder(dividingBy: 1)
+        let normalizedEnd = end
+        return ZStack {
+            glowSegmentPart(from: normalizedStart,
+                            to: min(normalizedEnd, 1),
+                            gradient: gradient,
+                            lineWidth: lineWidth)
+            if normalizedEnd > 1 {
+                glowSegmentPart(from: 0,
+                                to: normalizedEnd - 1,
+                                gradient: gradient,
+                                lineWidth: lineWidth)
+            }
+        }
+    }
+
+    private func glowSegmentPart(from: CGFloat,
+                                 to: CGFloat,
+                                 gradient: AngularGradient,
+                                 lineWidth: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: borderCornerRadius, style: .continuous)
+            .trim(from: from, to: to)
+            .stroke(gradient,
+                    style: StrokeStyle(
+                        lineWidth: lineWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+            )
+            .blur(radius: 1.4)
     }
     
     @ViewBuilder
