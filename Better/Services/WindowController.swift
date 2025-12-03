@@ -1024,10 +1024,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
 
     private func handleSearchTextChange(_ newValue: String) {
         guard searchText != newValue else {
+            finishEntriesUpdate()
             return
         }
         beginEntriesUpdate()
-        defer { finishEntriesUpdate() }
+        defer {
+            finishEntriesUpdate()
+        }
         searchText = newValue
         let previousWindows = windows
         entries = filteredEntries

@@ -46,6 +46,14 @@ struct StatusOverlayBar: View {
             .padding(.top, 1)
             .focused($searchFieldFocused)
             .focusable(false)
+            .onKeyPress(.escape) {
+                if isSearching {
+                    context.searchText = ""
+                    searchFieldFocused = false
+                    return .handled
+                }
+                return .ignored
+            }
             Spacer()
             if isSearching {
                 if context.totalCount == 0 {
