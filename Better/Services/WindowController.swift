@@ -821,7 +821,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
             hideStatusOverlayBar()
             return
         }
-        let displayIndex = min(max(frontIndex + 1, 1), totalCount)
+        let actualIndex: Int
+        if statusOverlayContext.filterPinned {
+            actualIndex = entries.filter { entryIndexLookup[$0.id] ?? Int.max < frontIndex }.count
+        } else {
+            actualIndex = frontIndex
+        }
+        let displayIndex = min(max(actualIndex + 1, 1), totalCount)
         let (window, host) = statusOverlayComponents()
         statusOverlayContext.update(index: displayIndex, total: totalCount)
         statusOverlayContext.setSearchTextIfNeeded(searchText)
