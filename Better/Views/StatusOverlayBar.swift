@@ -156,8 +156,7 @@ struct StatusOverlayBar: View {
         guard context.isUpdatingEntries else {
             return false
         }
-        let isFocusedWithoutText = searchFieldFocused && context.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return !isFocusedWithoutText
+        return true
     }
 
     private func glowSegment(start: CGFloat, end: CGFloat, lineWidth: CGFloat) -> some View {
