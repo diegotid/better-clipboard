@@ -34,6 +34,12 @@ struct ClipboardEntry: View {
     private var isImage: Bool { entry.contentType == .image }
     private var isLink: Bool { entry.contentType == .link }
     private var isEmoji: Bool { entry.contentType == .emoji }
+    private var isTranslationSupported: Bool {
+        if #available(macOS 26.0, *) {
+            return true
+        }
+        return false
+    }
     
     private let cornerRadius: CGFloat = 12
     private let thumbnailHeightScale: CGFloat = 1.08
@@ -171,6 +177,8 @@ struct ClipboardEntry: View {
                     )
                 }
                 .buttonStyle(.plain)
+            } else if isTranslationSupported == false {
+                EmptyView()
             } else if languageContext.languages.isEmpty || !isTranslationAvailable {
                 Button(action: {
                     showingTranslationHelp = true
@@ -384,7 +392,7 @@ struct ClipboardEntry: View {
                 writingToolsController.focusTextView()
             }
             Task {
-                guard let translator else { return }
+                guard isTranslationSupported, let translator else { return }
                 let language = await translator.detectLanguage(for: editedText)
                 let isAvailable = await translator.isAvailable(for: editedText)
                 let codeLanguage = CodeDetector.detectCode(in: entry.original)
@@ -419,7 +427,7 @@ struct ClipboardEntry: View {
             writingToolsController.showWritingToolsPanel()
         }
         .onReceive(NotificationCenter.default.publisher(for: .translationRequested)) { notification in
-            guard isFrontMost else { return }
+            guard isFrontMost, isTranslationSupported else { return }
             if let language = notification.object as? Locale.Language {
                 translate(to: language)
             }

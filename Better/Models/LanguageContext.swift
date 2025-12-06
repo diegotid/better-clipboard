@@ -17,6 +17,9 @@ final class LanguageContext: ObservableObject {
     }
     
     func refreshLanguages() {
+        guard #available(macOS 26.0, *) else {
+            return
+        }
         let availability = LanguageAvailability()
         Task {
             let supported = await availability.supportedLanguages

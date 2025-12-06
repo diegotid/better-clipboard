@@ -49,6 +49,12 @@ actor Translator {
     private var targetLanguage: Locale.Language?
     private var sessions: [SessionKey: TranslationSession] = [:]
     private let availability = LanguageAvailability()
+    private var isTranslationSupported: Bool {
+        if #available(macOS 26.0, *) {
+            return true
+        }
+        return false
+    }
 
     func configure(target: Locale.Language? = nil) async {
         targetLanguage = target
@@ -64,18 +70,25 @@ actor Translator {
     }
 
     func translate(_ text: String) async throws -> String {
+        guard isTranslationSupported else {
+            return text
+        }
         guard let targetLanguage else {
             return text
         }
         let sourceLanguage = detectLanguage(for: text) ?? Locale.current.language
         let key = SessionKey(source: sourceLanguage, target: targetLanguage)
-        let session = try await sessionForTranslation(for: key)
-        do {
-            let response = try await session.translate(text)
-            return response.targetText
-        } catch {
-            sessions.removeValue(forKey: key)
-            throw error
+        if #available(macOS 26.0, *) {
+            let session = try await sessionForTranslation(for: key)
+            do {
+                let response = try await session.translate(text)
+                return response.targetText
+            } catch {
+                sessions.removeValue(forKey: key)
+                throw error
+            }
+        } else {
+            return text
         }
     }
 
@@ -89,6 +102,9 @@ actor Translator {
     }
     
     func isAvailable(for text: String) async -> Bool {
+        guard isTranslationSupported else {
+            return false
+        }
         do {
             return try await availability.status(for: text, to: nil) == .installed
         } catch {
@@ -96,6 +112,7 @@ actor Translator {
         }
     }
 
+    @available(macOS 26.0, *)
     private func sessionForTranslation(for key: SessionKey) async throws -> TranslationSession {
         if let cached = sessions[key] {
             return cached
