@@ -24,10 +24,10 @@ final class ClipboardWatcher {
                 return
             }
             self.lastChange = board.changeCount
-            if let imageData = board.data(forType: .tiff) ?? board.data(forType: .png) {
+            if let text = ClipboardWatcher.readText(from: board) {
+                onChange(.text(text))
+            } else if let imageData = board.data(forType: .tiff) ?? board.data(forType: .png) {
                 onChange(.image(imageData))
-            } else if let str = board.string(forType: .string) {
-                onChange(.text(str))
             }
         }
     }
@@ -35,5 +35,31 @@ final class ClipboardWatcher {
     func stop() {
         timer?.invalidate()
         timer = nil
+    }
+
+    private static func readText(from board: NSPasteboard) -> String? {
+        if let plain = board.string(forType: .string), plain.isEmpty == false {
+            return plain
+        }
+
+        if let rtfData = board.data(forType: .rtf),
+           let attributed = NSAttributedString(rtf: rtfData, documentAttributes: nil),
+           attributed.string.isEmpty == false {
+            return attributed.string
+        }
+
+        if let rtfdData = board.data(forType: .rtfd),
+           let attributed = NSAttributedString(rtfd: rtfdData, documentAttributes: nil),
+           attributed.string.isEmpty == false {
+            return attributed.string
+        }
+
+        if let attributedStrings = board.readObjects(forClasses: [NSAttributedString.self]) as? [NSAttributedString],
+           let first = attributedStrings.first,
+           first.string.isEmpty == false {
+            return first.string
+        }
+
+        return nil
     }
 }
