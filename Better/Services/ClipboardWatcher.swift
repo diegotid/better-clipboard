@@ -41,25 +41,21 @@ final class ClipboardWatcher {
         if let plain = board.string(forType: .string), plain.isEmpty == false {
             return plain
         }
-
         if let rtfData = board.data(forType: .rtf),
            let attributed = NSAttributedString(rtf: rtfData, documentAttributes: nil),
            attributed.string.isEmpty == false {
             return attributed.string
         }
-
         if let rtfdData = board.data(forType: .rtfd),
            let attributed = NSAttributedString(rtfd: rtfdData, documentAttributes: nil),
            attributed.string.isEmpty == false {
             return attributed.string
         }
-
         if let attributedStrings = board.readObjects(forClasses: [NSAttributedString.self]) as? [NSAttributedString],
            let first = attributedStrings.first,
            first.string.isEmpty == false {
             return first.string
         }
-
         return nil
     }
 }

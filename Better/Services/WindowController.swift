@@ -44,6 +44,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var statusOverlaySearchObserver: AnyCancellable?
     private var statusOverlayFilterObserver: AnyCancellable?
     private var statusOverlaySearchImmediateObserver: AnyCancellable?
+    private var settingsPopover: NSPopover?
     private let statusOverlayContext = StatusOverlayContext()
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
@@ -84,6 +85,18 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.keyEquivalentModifierMask = [.command]
         item.target = self
         item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+        return item
+    }()
+
+    private lazy var settingsItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Settings…",
+            action: #selector(showSettings(_:)),
+            keyEquivalent: ","
+        )
+        item.keyEquivalentModifierMask = [.command]
+        item.target = self
+        item.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         return item
     }()
 
@@ -166,6 +179,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
+                self.hideSettingsPopover()
                 self.closeWindows()
             }
         }
@@ -184,6 +198,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         if let observer = deleteRequestObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        settingsPopover?.close()
         if let aboutWin = aboutWindow {
             Task { @MainActor in
                 aboutWin.close()
@@ -370,10 +385,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
                                accessibilityDescription: "Better")
         button.image?.isTemplate = true
         let menu = NSMenu()
+        menu.addItem(aboutMenuItem)
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(toggleMenuItem)
         menu.addItem(clearItem)
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(aboutMenuItem)
+        menu.addItem(settingsItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(quitItem)
         statusBarItem.menu = menu
@@ -415,6 +432,42 @@ final class WindowController: NSObject, NSMenuItemValidation {
     @objc
     private func quitAction(_ sender: Any?) {
         NSApp.terminate(nil)
+    }
+
+    @objc
+    private func showSettings(_ sender: Any?) {
+        toggleSettingsPopover()
+    }
+
+    private func toggleSettingsPopover() {
+        if let popover = settingsPopover, popover.isShown {
+            hideSettingsPopover()
+        } else {
+            showSettingsPopover()
+        }
+    }
+
+    private func showSettingsPopover() {
+        guard let button = statusBarItem.button else {
+            return
+        }
+        hideSettingsPopover()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentViewController = NSHostingController(rootView: SettingsView())
+        settingsPopover = popover
+        popover.show(
+            relativeTo: button.bounds,
+            of: button,
+            preferredEdge: .maxY
+        )
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func hideSettingsPopover() {
+        settingsPopover?.performClose(nil)
+        settingsPopover = nil
     }
 
     @objc
@@ -885,7 +938,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
             guard let self else {
                 return event
             }
-            guard !self.windows.isEmpty else {
+            let isSettingsShortcut = event.keyCode == UInt16(kVK_ANSI_Comma) && event.modifierFlags.contains(.command)
+            guard !self.windows.isEmpty || isSettingsShortcut else {
                 return event
             }
             switch event.keyCode {
@@ -906,6 +960,11 @@ final class WindowController: NSObject, NSMenuItemValidation {
             case UInt16(kVK_Delete):
                 if event.modifierFlags.contains(.command) {
                     self.deleteFrontEntry()
+                    return nil
+                }
+            case UInt16(kVK_ANSI_Comma):
+                if event.modifierFlags.contains(.command) {
+                    self.toggleSettingsPopover()
                     return nil
                 }
             case UInt16(escapeKeyCode):
