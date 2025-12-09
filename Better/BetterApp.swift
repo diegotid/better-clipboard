@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StoreKit
 
 private final class MenuBarControllerBox {
     var controller: WindowController?
@@ -26,12 +27,15 @@ struct BetterApp: App {
             controllerBox.controller = controller
             controller.presentInitialWindowsIfNeeded()
         }
+        Task {
+            await PurchaseManager.enforceHistoryLimitIfLocked()
+        }
         NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     var body: some Scene {
         Settings {
-            SettingsView()
+            SettingsPopover()
         }
     }
 }

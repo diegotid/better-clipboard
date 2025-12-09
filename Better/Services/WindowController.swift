@@ -9,6 +9,7 @@ import SwiftUI
 import Carbon.HIToolbox
 import Combine
 import QuartzCore
+import StoreKit
 internal import AppKit
 
 private let escapeKeyCode: Int = 53
@@ -45,6 +46,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var statusOverlayFilterObserver: AnyCancellable?
     private var statusOverlaySearchImmediateObserver: AnyCancellable?
     private var settingsPopover: NSPopover?
+    private var proPopover: NSPopover?
+    private let purchaseManager = PurchaseManager()
     private let statusOverlayContext = StatusOverlayContext()
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
@@ -97,6 +100,17 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.keyEquivalentModifierMask = [.command]
         item.target = self
         item.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+        return item
+    }()
+
+    private lazy var restorePurchasesItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Restore Purchases",
+            action: #selector(restorePurchases(_:)),
+            keyEquivalent: ""
+        )
+        item.target = self
+        item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
         return item
     }()
 
@@ -199,6 +213,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
             NotificationCenter.default.removeObserver(observer)
         }
         settingsPopover?.close()
+        proPopover?.close()
         if let aboutWin = aboutWindow {
             Task { @MainActor in
                 aboutWin.close()
@@ -391,6 +406,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         menu.addItem(clearItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(settingsItem)
+        menu.addItem(restorePurchasesItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(quitItem)
         statusBarItem.menu = menu
@@ -439,6 +455,76 @@ final class WindowController: NSObject, NSMenuItemValidation {
         toggleSettingsPopover()
     }
 
+    @objc
+    private func restorePurchases(_ sender: Any?) {
+        Task {
+            var foundEntitlement = false
+            for await result in Transaction.currentEntitlements {
+                if case .verified(let transaction) = result,
+                   transaction.productID == PurchaseManager.unlockProductID {
+                    foundEntitlement = true
+                    break
+                }
+            }
+            await MainActor.run {
+                NotificationCenter.default.post(name: .restorePurchasesRequested, object: nil)
+                let alert = NSAlert()
+                if foundEntitlement {
+                    alert.messageText = "Purchase Restored"
+                    alert.informativeText = "Your lifetime unlock has been successfully restored."
+                    alert.alertStyle = .informational
+                } else {
+                    alert.messageText = "No Purchases Found"
+                    alert.informativeText = "No previous purchases were found for this Apple ID."
+                    alert.alertStyle = .warning
+                }
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+        }
+    }
+
+    @objc
+    private func showPro(_ sender: Any?) {
+        toggleProPopover()
+    }
+
+    private func toggleProPopover() {
+        if let popover = proPopover, popover.isShown {
+            hideProPopover()
+        } else {
+            showProPopover()
+        }
+    }
+
+    private func showProPopover() {
+        guard let button = statusBarItem.button else {
+            return
+        }
+        hideProPopover()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentViewController = NSHostingController(
+            rootView: ProPopover(onPurchase: {
+                // TODO: Hook up real purchase flow.
+                self.hideProPopover()
+            })
+        )
+        proPopover = popover
+        popover.show(
+            relativeTo: button.bounds,
+            of: button,
+            preferredEdge: .maxY
+        )
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func hideProPopover() {
+        proPopover?.performClose(nil)
+        proPopover = nil
+    }
+
     private func toggleSettingsPopover() {
         if let popover = settingsPopover, popover.isShown {
             hideSettingsPopover()
@@ -455,7 +541,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(rootView: SettingsView())
+        popover.contentViewController = NSHostingController(rootView: SettingsPopover())
         settingsPopover = popover
         popover.show(
             relativeTo: button.bounds,
@@ -1327,3 +1413,4 @@ extension WindowController {
         return true
     }
 }
+

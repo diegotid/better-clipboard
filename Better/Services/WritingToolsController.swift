@@ -16,6 +16,7 @@ extension Notification.Name {
     static let toggleEntryPinnedRequested = Notification.Name("toggleEntryPinnedRequested")
     static let searchEntriesRequested = Notification.Name("searchEntriesRequested")
     static let translationRequested = Notification.Name("translationRequested")
+    static let restorePurchasesRequested = Notification.Name("restorePurchasesRequested")
 }
 
 final class WritingToolsController: ObservableObject {
