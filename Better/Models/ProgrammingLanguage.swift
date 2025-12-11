@@ -63,6 +63,10 @@ let codePatterns: [CodePattern] = [
         language: ProgrammingLanguage(name: "JavaScript", color: Color(hex: "F7C500"))
     ),
     CodePattern(
+        pattern: #"navigator\.credentials\.get\s*\("#,
+        language: ProgrammingLanguage(name: "JavaScript", color: Color(hex: "F7C500"))
+    ),
+    CodePattern(
         pattern: #"(async|await)\s+(function|\w+\s*=>|\w+\s*\()"#,
         language: ProgrammingLanguage(name: "JavaScript", color: Color(hex: "F7C500"))
     ),

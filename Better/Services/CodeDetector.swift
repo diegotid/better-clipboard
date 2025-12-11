@@ -10,10 +10,11 @@ import SwiftUI
 internal import AppKit
 
 struct CodeDetector {
-    static let codeThreshold: Double = 0.1
+    static let codeThreshold: Double = 0.05
 
     static func detectCode(in text: String) -> ProgrammingLanguage? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedText = normalizeQuotes(in: text)
+        let trimmed = normalizedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 3 else {
             return nil
         }
@@ -30,6 +31,9 @@ struct CodeDetector {
             if trimmed.hasPrefix(pattern) {
                 return language
             }
+        }
+        if let jsonLanguage = detectJSON(in: trimmed) {
+            return jsonLanguage
         }
         let structuralChars = trimmed.filter { "{}[]:,".contains($0) }.count
         let textLength = trimmed.count
@@ -64,6 +68,9 @@ struct CodeDetector {
         }
         let codeRatio = Double(codeWordCount) / Double(totalWords)
         if codeRatio < Self.codeThreshold {
+            if hasCodeIndicators(textToAnalyze) {
+                return ProgrammingLanguage(name: "Code", color: .blue)
+            }
             return nil
         }
         for option in codePatterns {
@@ -75,6 +82,29 @@ struct CodeDetector {
             return ProgrammingLanguage(name: "Code", color: .blue)
         }
         return nil
+    }
+
+    private static func detectJSON(in text: String) -> ProgrammingLanguage? {
+        guard text.hasPrefix("{") || text.hasPrefix("[") else { return nil }
+        guard let data = text.data(using: .utf8) else { return nil }
+        if let _ = try? JSONSerialization.jsonObject(with: data, options: []) {
+            return ProgrammingLanguage(name: "JSON", color: Color(hex: "95A5A6"))
+        }
+        return nil
+    }
+
+    private static func normalizeQuotes(in text: String) -> String {
+        var result = text
+        let replacements: [String: String] = [
+            "“": "\"",
+            "”": "\"",
+            "‘": "'",
+            "’": "'"
+        ]
+        for (curly, straight) in replacements {
+            result = result.replacingOccurrences(of: curly, with: straight)
+        }
+        return result
     }
     
     private static func hasCodeIndicators(_ text: String) -> Bool {
