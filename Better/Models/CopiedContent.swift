@@ -17,9 +17,11 @@ enum CopiedContentType: String, Codable {
 struct CopiedContent: Identifiable, Codable, Hashable {
     let id: UUID
     let date: Date
+    var isPinned: Bool
     let original: String
     let contentType: CopiedContentType
-    var isPinned: Bool
+    // Set asynchronously after initialization.
+    var codeLanguage: ProgrammingLanguage?
     var linkMetatags: LinkMetatags?
     let imageData: Data?
     
@@ -29,13 +31,12 @@ struct CopiedContent: Identifiable, Codable, Hashable {
     init(
         id: UUID = UUID(),
         original: String,
-        date: Date,
         contentType: CopiedContentType = .text,
         linkMetatags: LinkMetatags? = nil,
         imageData: Data? = nil
     ) {
         self.id = id
-        self.date = date
+        self.date = Date()
         self.original = original
         self.contentType = contentType
         self.isPinned = false
@@ -95,6 +96,10 @@ struct CopiedContent: Identifiable, Codable, Hashable {
     
     mutating func unpin() {
         isPinned = false
+    }
+    
+    mutating func setCodeLanguage(_ value: ProgrammingLanguage?) {
+        codeLanguage = value
     }
 }
 

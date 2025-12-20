@@ -11,7 +11,7 @@ internal import AppKit
 
 struct CodeDetector {
     static let codeThreshold: Double = 0.05
-
+    
     static func detectCode(in text: String) -> ProgrammingLanguage? {
         let normalizedText = normalizeQuotes(in: text)
         let trimmed = normalizedText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,7 +58,7 @@ struct CodeDetector {
         let totalWords = words.count
         guard totalWords > 0 else {
             return nil
-            }
+        }
         var codeWordCount = 0
         for option in codePatterns {
             if let regex = try? NSRegularExpression(pattern: option.pattern, options: []) {
@@ -83,8 +83,29 @@ struct CodeDetector {
         }
         return nil
     }
+    
+    static func configureCodeStyling(
+        for textView: NSTextView,
+        language: ProgrammingLanguage?
+    ) {
+        textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isGrammarCheckingEnabled = false
+        textView.textColor = .textColor
+        textView.insertionPointColor = .clear
+        textView.isAutomaticTextCompletionEnabled = false
+        textView.smartInsertDeleteEnabled = false
+        let reformattedText = reformatIndentation(textView.string, language: language)
+        textView.string = reformattedText
+        let paragraphStyle = configureCodeIndent(language: language)
+        applySyntaxHighlighting(to: textView, language: language, paragraphStyle: paragraphStyle)
+    }
+}
 
-    private static func detectJSON(in text: String) -> ProgrammingLanguage? {
+private extension CodeDetector {
+    static func detectJSON(in text: String) -> ProgrammingLanguage? {
         guard text.hasPrefix("{") || text.hasPrefix("[") else { return nil }
         guard let data = text.data(using: .utf8) else { return nil }
         if let _ = try? JSONSerialization.jsonObject(with: data, options: []) {
@@ -93,7 +114,7 @@ struct CodeDetector {
         return nil
     }
 
-    private static func normalizeQuotes(in text: String) -> String {
+    static func normalizeQuotes(in text: String) -> String {
         var result = text
         let replacements: [String: String] = [
             "“": "\"",
@@ -107,7 +128,7 @@ struct CodeDetector {
         return result
     }
     
-    private static func hasCodeIndicators(_ text: String) -> Bool {
+    static func hasCodeIndicators(_ text: String) -> Bool {
         let semicolonCount = text.filter { $0 == ";" }.count
         let bracketCount = text.filter { $0 == "{" || $0 == "}" }.count
         let parenCount = text.filter { $0 == "(" }.count
@@ -144,7 +165,7 @@ struct CodeDetector {
         return indicators >= 2
     }
     
-    private static func color(fromHex hex: String) -> Color? {
+    static func color(fromHex hex: String) -> Color? {
         var hexString = hex.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
         hexString = hexString.replacingOccurrences(of: "#", with: "")
         guard hexString.count == 6,
@@ -157,26 +178,7 @@ struct CodeDetector {
         return Color(red: red, green: green, blue: blue)
     }
     
-    static func configureCodeStyling(
-        for textView: NSTextView,
-        language: ProgrammingLanguage?
-    ) {
-        textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isContinuousSpellCheckingEnabled = false
-        textView.isGrammarCheckingEnabled = false
-        textView.textColor = .textColor
-        textView.insertionPointColor = .clear
-        textView.isAutomaticTextCompletionEnabled = false
-        textView.smartInsertDeleteEnabled = false
-        let reformattedText = reformatIndentation(textView.string, language: language)
-        textView.string = reformattedText
-        let paragraphStyle = configureCodeIndent(language: language)
-        applySyntaxHighlighting(to: textView, language: language, paragraphStyle: paragraphStyle)
-    }
-    
-    private static func reformatIndentation(_ text: String, language: ProgrammingLanguage?) -> String {
+    static func reformatIndentation(_ text: String, language: ProgrammingLanguage?) -> String {
         let indentationSensitiveLanguages = ["Python", "YAML", "Markdown"]
         if let lang = language?.name, indentationSensitiveLanguages.contains(lang) {
             return text
@@ -209,7 +211,7 @@ struct CodeDetector {
         return reformatted.joined(separator: "\n")
     }
 
-    private static func configureCodeIndent(language: ProgrammingLanguage?) -> NSParagraphStyle {
+    static func configureCodeIndent(language: ProgrammingLanguage?) -> NSParagraphStyle {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.headIndent = 0
         paragraphStyle.firstLineHeadIndent = 0
@@ -226,7 +228,7 @@ struct CodeDetector {
         return paragraphStyle
     }
     
-    private static func applySyntaxHighlighting(
+    static func applySyntaxHighlighting(
         to textView: NSTextView,
         language: ProgrammingLanguage?,
         paragraphStyle: NSParagraphStyle
@@ -293,7 +295,7 @@ struct CodeDetector {
         }
     }
     
-    private static func applyJSONSyntaxHighlighting(
+    static func applyJSONSyntaxHighlighting(
         to storage: NSTextStorage,
         text: String,
         fullRange: NSRange

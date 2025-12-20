@@ -55,10 +55,7 @@ final class ClipboardController: ObservableObject {
                         }
                         if let url = self.linkFetcher.detectURL(in: trimmed) {
                             let entry = CopiedContent(original: trimmed,
-                                                      date: Date(),
-                                                      contentType: .link,
-                                                      linkMetatags: nil,
-                                                      imageData: nil)
+                                                      contentType: .link)
                             self.insert(entry: entry)
                             Task.detached { [weak self] in
                                 guard let self else { return }
@@ -74,14 +71,11 @@ final class ClipboardController: ObservableObject {
                         let isEmojiOnly = !trimmed.isEmpty && trimmed.allSatisfy { $0.isEmoji }
                         let entryType: CopiedContentType = isEmojiOnly ? .emoji : .text
                         let entry = CopiedContent(original: trimmed,
-                                                  date: Date(),
-                                                  contentType: entryType,
-                                                  imageData: nil)
+                                                  contentType: entryType)
                         self.insert(entry: entry)
                     case .image(let imageData):
                         let imageName = "Image \(Date().formatted(date: .omitted, time: .shortened))"
                         let entry = CopiedContent(original: imageName,
-                                                  date: Date(),
                                                   contentType: .image,
                                                   imageData: imageData)
                         let updated = [entry] + self.history
@@ -138,6 +132,20 @@ final class ClipboardController: ObservableObject {
         }
         let updated = [existing ?? entry] + dedupedHistory
         history = Array(updated.prefix(capacity))
+        
+        if entry.contentType == .text || entry.contentType == .emoji {
+            let entryID = entry.id
+            let entryOriginal = entry.original
+            Task.detached { [entryID, entryOriginal] in
+                let codeLang = await MainActor.run { CodeDetector.detectCode(in: entryOriginal) }
+                await MainActor.run {
+                    guard let idx = self.history.firstIndex(where: { $0.id == entryID }) else { return }
+                    var updatedEntry = self.history[idx]
+                    updatedEntry.setCodeLanguage(codeLang)
+                    self.history[idx] = updatedEntry
+                }
+            }
+        }
     }
     
     private func updateLinkMetadata(for id: UUID, metatags: LinkMetatags) {

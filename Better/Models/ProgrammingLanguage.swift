@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ProgrammingLanguage {
+struct ProgrammingLanguage: Equatable, Hashable {
     let name: String
     let color: Color?
 }

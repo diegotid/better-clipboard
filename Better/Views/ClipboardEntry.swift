@@ -26,11 +26,10 @@ struct ClipboardEntry: View {
     @State private var isTranslationAvailable = false
     @State private var showingWritingToolsHelp = false
     @State private var showingTranslationHelp = false
-    @State private var codeLanguage: ProgrammingLanguage? = nil
     @State private var showCopyConfirmation = false
     @State private var localIsPinned: Bool
 
-    private var isCode: Bool { codeLanguage != nil }
+    private var isCode: Bool { entry.codeLanguage != nil }
     private var isImage: Bool { entry.contentType == .image }
     private var isLink: Bool { entry.contentType == .link }
     private var isEmoji: Bool { entry.contentType == .emoji }
@@ -165,8 +164,8 @@ struct ClipboardEntry: View {
                             .monospaced()
                             .foregroundStyle(.white)
                             .padding(.leading, 4)
-                        Text(codeLanguage?.name ?? "Code")
-                            .foregroundStyle(codeLanguage?.color?.adaptiveForAppearance() ?? .white)
+                        Text(entry.codeLanguage?.name ?? "Code")
+                            .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .white)
                             .padding(.trailing, 8)
                     }
                     .padding(.vertical, 4)
@@ -298,7 +297,7 @@ struct ClipboardEntry: View {
                             text: $editedText,
                             controller: writingToolsController,
                             isEmoji: isEmoji,
-                            codeLanguage: codeLanguage
+                            codeLanguage: entry.codeLanguage
                         )
                         .onChange(of: editedText) {
                             onChange(entry.id, editedText, translatedTo)
@@ -395,11 +394,9 @@ struct ClipboardEntry: View {
                 guard isTranslationSupported, let translator else { return }
                 let language = await translator.detectLanguage(for: editedText)
                 let isAvailable = await translator.isAvailable(for: editedText)
-                let codeLanguage = CodeDetector.detectCode(in: entry.original)
                 await MainActor.run {
                     self.textLanguage = language
                     self.isTranslationAvailable = isAvailable
-                    self.codeLanguage = codeLanguage
                 }
             }
         }
