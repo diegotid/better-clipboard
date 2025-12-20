@@ -28,6 +28,7 @@ struct ClipboardEntry: View {
     @State private var showingTranslationHelp = false
     @State private var showCopyConfirmation = false
     @State private var localIsPinned: Bool
+    @State private var preparedImage: NSImage?
 
     private var isCode: Bool { entry.codeLanguage != nil }
     private var isImage: Bool { entry.contentType == .image }
@@ -62,6 +63,7 @@ struct ClipboardEntry: View {
         _textLanguage = State(initialValue: entry.translatedTo)
         _translatedTo = State(initialValue: entry.translatedTo)
         _localIsPinned = State(initialValue: entry.isPinned)
+        _preparedImage = State(initialValue: nil)
     }
         
     var formattedDate: String {
@@ -286,10 +288,15 @@ struct ClipboardEntry: View {
             ZStack {
                 ZStack(alignment: .topLeading) {
                     VisualEffectBlur(material: .contentBackground).opacity(0.6)
-                    if isImage,
-                       let imageData = entry.imageData,
-                       let nsImage = NSImage(data: imageData) {
-                        AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius)
+                    if isImage {
+                        if let nsImage = preparedImage {
+                            AdaptiveImageContainer(image: nsImage, cornerRadius: cornerRadius)
+                        } else {
+                            ProgressView()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(Color.secondary.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        }
                     } else if isLink, let url = URL(string: entry.original) {
                         LinkCard(url: url, metatags: entry.linkMetatags)
                     } else {
@@ -311,61 +318,61 @@ struct ClipboardEntry: View {
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .padding(.horizontal, -6)
                 .zIndex(0)
-                if isImage,
-                   let imageData = entry.imageData,
-                   let nsImage = NSImage(data: imageData) {
+                if isImage {
                     GeometryReader { proxy in
                         let size = proxy.size
-                        let imageSize = nsImage.size
-                        let imageAspectRatio = imageSize.width / imageSize.height
-                        let containerAspectRatio = size.width / size.height
-                        let isCropped = abs(imageAspectRatio - containerAspectRatio) > 0.01
-                        let scaleFactor = min(size.width / imageSize.width, size.height / imageSize.height)
-                        let isUpscaled = scaleFactor > 1.2
-                        if isCropped || isUpscaled {
-                            let isPortrait = imageAspectRatio < 1.0
-                            let thumbnailSize: CGSize = {
-                                var calculatedSize: CGSize
-                                if isPortrait {
-                                    let height = size.height * thumbnailHeightScale
-                                    let width = height * imageAspectRatio
-                                    if width > size.width * thumbnailWidthScale {
-                                        let constrainedWidth = size.width * thumbnailWidthScale
-                                        let constrainedHeight = constrainedWidth / imageAspectRatio
-                                        calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+                        if let nsImage = preparedImage {
+                            let imageSize = nsImage.size
+                            let imageAspectRatio = imageSize.width / imageSize.height
+                            let containerAspectRatio = size.width / size.height
+                            let isCropped = abs(imageAspectRatio - containerAspectRatio) > 0.01
+                            let scaleFactor = min(size.width / imageSize.width, size.height / imageSize.height)
+                            let isUpscaled = scaleFactor > 1.2
+                            if isCropped || isUpscaled {
+                                let isPortrait = imageAspectRatio < 1.0
+                                let thumbnailSize: CGSize = {
+                                    var calculatedSize: CGSize
+                                    if isPortrait {
+                                        let height = size.height * thumbnailHeightScale
+                                        let width = height * imageAspectRatio
+                                        if width > size.width * thumbnailWidthScale {
+                                            let constrainedWidth = size.width * thumbnailWidthScale
+                                            let constrainedHeight = constrainedWidth / imageAspectRatio
+                                            calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+                                        } else {
+                                            calculatedSize = CGSize(width: width, height: height)
+                                        }
                                     } else {
-                                        calculatedSize = CGSize(width: width, height: height)
+                                        let width = size.width * thumbnailWidthScale
+                                        let height = width / imageAspectRatio
+                                        if height > size.height * thumbnailHeightScale {
+                                            let constrainedHeight = size.height * thumbnailHeightScale
+                                            let constrainedWidth = constrainedHeight * imageAspectRatio
+                                            calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+                                        } else {
+                                            calculatedSize = CGSize(width: width, height: height)
+                                        }
                                     }
-                                } else {
-                                    let width = size.width * thumbnailWidthScale
-                                    let height = width / imageAspectRatio
-                                    if height > size.height * thumbnailHeightScale {
-                                        let constrainedHeight = size.height * thumbnailHeightScale
-                                        let constrainedWidth = constrainedHeight * imageAspectRatio
-                                        calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
-                                    } else {
-                                        calculatedSize = CGSize(width: width, height: height)
-                                    }
-                                }
-                                return CGSize(
-                                    width: min(calculatedSize.width, imageSize.width),
-                                    height: min(calculatedSize.height, imageSize.height)
-                                )
-                            }()
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: thumbnailSize.width, height: thumbnailSize.height)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(Color(white: 0.85), lineWidth: 1)
-                                )
-                                .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 4)
-                                .frame(width: size.width, height: size.height)
-                                .opacity(isFrontMost ? 1 : 0)
-                                .scaleEffect(isFrontMost ? 1 : 0.9)
-                                .animation(.spring(response: 0.9, dampingFraction: 0.8), value: isFrontMost)
+                                    return CGSize(
+                                        width: min(calculatedSize.width, imageSize.width),
+                                        height: min(calculatedSize.height, imageSize.height)
+                                    )
+                                }()
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .stroke(Color(white: 0.85), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 4)
+                                    .frame(width: size.width, height: size.height)
+                                    .opacity(isFrontMost ? 1 : 0)
+                                    .scaleEffect(isFrontMost ? 1 : 0.9)
+                                    .animation(.spring(response: 0.9, dampingFraction: 0.8), value: isFrontMost)
+                            }
                         }
                     }
                     .padding(.horizontal, -6)
@@ -389,6 +396,12 @@ struct ClipboardEntry: View {
             }
             if isFrontMost && !isImage {
                 writingToolsController.focusTextView()
+            }
+            if isImage, let imageData = entry.imageData {
+                Task {
+                    let decoded = await decodeImage(data: imageData)
+                    await MainActor.run { self.preparedImage = decoded }
+                }
             }
             Task {
                 guard isTranslationSupported, let translator else { return }
@@ -692,6 +705,15 @@ private extension ClipboardEntry {
                 }
             } catch {
                 NSLog("Translation failed: \(error)")
+            }
+        }
+    }
+    
+    func decodeImage(data: Data) async -> NSImage? {
+        await withCheckedContinuation { cont in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let image = NSImage(data: data)
+                cont.resume(returning: image)
             }
         }
     }
