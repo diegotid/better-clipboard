@@ -7,6 +7,7 @@
 
 import Combine
 import Foundation
+import SwiftUI
 
 @MainActor
 final class ClipboardController: ObservableObject {
@@ -16,7 +17,9 @@ final class ClipboardController: ObservableObject {
         }
     }
     
-    private let capacity: Int = 30
+    @AppStorage("maxHistoryEntries")
+    private var maxHistoryEntries: Int = PurchaseManager.defaultHistoryLimit
+    
     private let watcher = ClipboardWatcher()
     private let linkFetcher = LinkMetadataFetcher()
     private let historyFileURL: URL = {
@@ -79,7 +82,7 @@ final class ClipboardController: ObservableObject {
                                                   contentType: .image,
                                                   imageData: imageData)
                         let updated = [entry] + self.history
-                        self.history = Array(updated.prefix(self.capacity))
+                        self.history = Array(updated.prefix(self.maxHistoryEntries))
                     }
                 }
             }
@@ -120,8 +123,7 @@ private extension ClipboardController {
             $0.contentType == .image || ($0.rewritten ?? $0.original) != entry.original
         }
         let updated = [existing ?? entry] + dedupedHistory
-        history = Array(updated.prefix(capacity))
-        
+        history = Array(updated.prefix(maxHistoryEntries))
         if entry.contentType == .text || entry.contentType == .emoji {
             let entryID = entry.id
             let entryOriginal = entry.original
@@ -144,7 +146,7 @@ private extension ClipboardController {
         do {
             let data = try Data(contentsOf: historyFileURL)
             let loaded = try JSONDecoder().decode([CopiedContent].self, from: data)
-            history = Array(loaded.prefix(capacity))
+            history = Array(loaded.prefix(maxHistoryEntries))
         } catch {
             print("Failed to load clipboard history: \(error)")
         }

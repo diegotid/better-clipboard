@@ -54,9 +54,12 @@ struct SettingsPopover: View {
                         HStack {
                             Text("Max history entries")
                             Spacer()
-                            TextField("", value: $maxHistoryEntries, format: .number)
+                            TextField("", value: Binding(
+                                get: { maxHistoryEntries },
+                                set: { maxHistoryEntries = min(max($0, 1), 100) }
+                            ), format: .number)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 40)
+                                .frame(width: 60)
                                 .multilineTextAlignment(.trailing)
                                 .disabled(!unlocked)
                         }
@@ -81,7 +84,7 @@ struct SettingsPopover: View {
                                 Spacer()
                                 TextField("", value: $maxPinnedEntries, format: .number)
                                     .textFieldStyle(.roundedBorder)
-                                    .frame(width: 40)
+                                    .frame(width: 60)
                                     .multilineTextAlignment(.trailing)
                                     .disabled(!unlocked)
                             }

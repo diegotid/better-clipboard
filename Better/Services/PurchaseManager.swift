@@ -10,7 +10,7 @@ import SwiftUI
 
 @Observable class PurchaseManager {
     static let unlockProductID = "studio.cuatro.Better.unlock"
-    static let defaultHistoryLimit = 15
+    static let defaultHistoryLimit = 10
 
     var products: [Product] = []
     var isLoading = false
@@ -52,7 +52,9 @@ import SwiftUI
                 break
             }
         }
-        guard unlocked == false else { return }
+        guard unlocked == false else {
+            return
+        }
         let defaults = UserDefaults.standard
         let current = defaults.object(forKey: "maxHistoryEntries") as? Int ?? defaultHistoryLimit
         if current != defaultHistoryLimit {
