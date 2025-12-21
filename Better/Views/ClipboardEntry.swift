@@ -15,10 +15,10 @@ struct ClipboardEntry: View {
     let onPaste: () -> Void
     let onCopy: (String) -> Void
     
-    @Environment(\.translator) private var translator: Translator?
     @ObservedObject var languageContext: LanguageContext
+    @Environment(\.translator) private var translator: Translator?
     @StateObject private var writingToolsController = WritingToolsController()
-
+    
     @State private var editedText: String
     @State private var textLanguage: Locale.Language?
     @State private var translatedTo: Locale.Language?
@@ -29,7 +29,7 @@ struct ClipboardEntry: View {
     @State private var showCopyConfirmation = false
     @State private var localIsPinned: Bool
     @State private var preparedImage: NSImage?
-
+    
     private var isCode: Bool { entry.codeLanguage != nil }
     private var isImage: Bool { entry.contentType == .image }
     private var isLink: Bool { entry.contentType == .link }
@@ -44,7 +44,7 @@ struct ClipboardEntry: View {
     private let cornerRadius: CGFloat = 12
     private let thumbnailHeightScale: CGFloat = 1.08
     private let thumbnailWidthScale: CGFloat = 1.01
-
+    
     init(
         entry: CopiedContent,
         isFrontMost: Bool,
@@ -65,7 +65,7 @@ struct ClipboardEntry: View {
         _localIsPinned = State(initialValue: entry.isPinned)
         _preparedImage = State(initialValue: nil)
     }
-        
+    
     var formattedDate: String {
         let calendar = Calendar.current
         let formatter = DateFormatter()
@@ -91,188 +91,6 @@ struct ClipboardEntry: View {
         }
     }
     
-    private func linkDestination() -> URL? {
-        if let url = URL(string: entry.original), url.scheme != nil {
-            return url
-        }
-        if !entry.original.isEmpty,
-           entry.original.contains("."),
-           let url = URL(string: "https://\(entry.original)") {
-            return url
-        }
-        return nil
-    }
-    
-    @ViewBuilder
-    private func pinButton() -> some View {
-        Button(action: {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                localIsPinned.toggle()
-            }
-            NotificationCenter.default.post(name: .toggleEntryPinnedRequested,
-                                            object: entry.id)
-        }) {
-            HStack {
-                keyImage("command")
-                    .scaleEffect(0.85)
-                keyCharacter("P")
-                    .padding(.leading, -6)
-                Image(systemName: localIsPinned ? "pin.slash.fill" : "pin")
-                    .font(.subheadline)
-                    .foregroundStyle(localIsPinned ? .white : .primary)
-                    .padding(.trailing, 6)
-            }
-            .padding(1)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(localIsPinned
-                          ? AnyShapeStyle(Color.accentColor.opacity(0.9))
-                          : AnyShapeStyle(.secondary.opacity(0.3)))
-            )
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut("p", modifiers: .command)
-        .help(localIsPinned ? "Unpin" : "Pin")
-    }
-    
-    @ViewBuilder
-    private func languageBar() -> some View {
-        HStack(spacing: 2) {
-            if isImage {
-                Button(action: {}) {
-                    HStack {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.white)
-                            .padding(.leading, 4)
-                        Text("Image")
-                            .foregroundStyle(.blue)
-                            .padding(.trailing, 8)
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.secondary.opacity(0.3))
-                    )
-                }
-                .buttonStyle(.plain)
-            } else if isEmoji || isLink {
-                EmptyView()
-            } else if isCode {
-                Button(action: {}) {
-                    HStack {
-                        Image(systemName: "curlybraces")
-                            .bold()
-                            .monospaced()
-                            .foregroundStyle(.white)
-                            .padding(.leading, 4)
-                        Text(entry.codeLanguage?.name ?? "Code")
-                            .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .white)
-                            .padding(.trailing, 8)
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.secondary.opacity(0.3))
-                    )
-                }
-                .buttonStyle(.plain)
-            } else if isTranslationSupported == false {
-                EmptyView()
-            } else if languageContext.languages.isEmpty || !isTranslationAvailable {
-                Button(action: {
-                    showingTranslationHelp = true
-                }) {
-                    HStack {
-                        Image(systemName: "translate")
-                            .font(.system(size: 15))
-                            .padding(.leading, 9)
-                            .padding(.bottom, 4)
-                            .padding(.top, 6)
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 15))
-                            .padding(.trailing, 9)
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.3))
-                    )
-                    .scaleEffect(0.9)
-                }
-                .buttonStyle(.plain)
-                .help("Add translation languages")
-                .popover(isPresented: $showingTranslationHelp, arrowEdge: .top) {
-                    TranslationHelpPopover(onRefresh: {
-                        languageContext.refreshLanguages()
-                        showingTranslationHelp = false
-                    })
-                    .background(WindowLevelModifier())
-                }
-            } else {
-                ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
-                    languageButton(
-                        language: item.element,
-                        index: languageContext.languages.firstIndex(of: item.element) ?? 0
-                    )
-                }
-            }
-        }
-        .padding(.top, 7)
-        .padding(.trailing, 7)
-    }
-    
-    @ViewBuilder
-    private func languageButton(
-        language: Locale.Language,
-        index: Int
-    ) -> some View {
-        let locale = Locale(identifier: language.maximalIdentifier)
-        let lang = translatedTo ?? textLanguage
-        let isCurrent = language.languageCode == lang?.languageCode
-        Button(action: {
-            $translatingTo.wrappedValue = language
-            NotificationCenter.default.post(name: .translationRequested,
-                                            object: language)
-        }) {
-            HStack {
-                HStack {
-                    if isCurrent {
-                        Image(systemName: "checkmark")
-                            .bold()
-                            .font(.system(size: 15))
-                            .padding(.leading, 4)
-                            .padding(.trailing, 1)
-                    } else if $translatingTo.wrappedValue == language {
-                        ProgressView()
-                            .frame(width: 16, height: 16)
-                            .scaleEffect(0.6)
-                            .padding(.horizontal, 4)
-                    } else {
-                        Image(systemName: "command")
-                        Text("\(index + 1)")
-                            .padding(.leading, -5)
-                    }
-                }
-                .padding(.leading, 6)
-                .padding(.vertical, 5)
-                .padding(.trailing, 0)
-                LanguageFlag(locale: locale, diameter: 24)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .padding(0)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(.secondary.opacity(0.3))
-            )
-            .scaleEffect(0.9)
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut(KeyEquivalent(Character("\((index % 9) + 1)")), modifiers: .command)
-        .help("Translate into \(locale.description)")
-        .disabled(isCurrent)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -329,35 +147,11 @@ struct ClipboardEntry: View {
                             let scaleFactor = min(size.width / imageSize.width, size.height / imageSize.height)
                             let isUpscaled = scaleFactor > 1.2
                             if isCropped || isUpscaled {
-                                let isPortrait = imageAspectRatio < 1.0
-                                let thumbnailSize: CGSize = {
-                                    var calculatedSize: CGSize
-                                    if isPortrait {
-                                        let height = size.height * thumbnailHeightScale
-                                        let width = height * imageAspectRatio
-                                        if width > size.width * thumbnailWidthScale {
-                                            let constrainedWidth = size.width * thumbnailWidthScale
-                                            let constrainedHeight = constrainedWidth / imageAspectRatio
-                                            calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
-                                        } else {
-                                            calculatedSize = CGSize(width: width, height: height)
-                                        }
-                                    } else {
-                                        let width = size.width * thumbnailWidthScale
-                                        let height = width / imageAspectRatio
-                                        if height > size.height * thumbnailHeightScale {
-                                            let constrainedHeight = size.height * thumbnailHeightScale
-                                            let constrainedWidth = constrainedHeight * imageAspectRatio
-                                            calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
-                                        } else {
-                                            calculatedSize = CGSize(width: width, height: height)
-                                        }
-                                    }
-                                    return CGSize(
-                                        width: min(calculatedSize.width, imageSize.width),
-                                        height: min(calculatedSize.height, imageSize.height)
-                                    )
-                                }()
+                                let thumbnailSize = calculateThumbnailSize(
+                                    imageSize: imageSize,
+                                    containerSize: size,
+                                    imageAspectRatio: imageAspectRatio
+                                )
                                 Image(nsImage: nsImage)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
@@ -450,7 +244,177 @@ struct ClipboardEntry: View {
     }
     
     @ViewBuilder
-    private func buttonBar() -> some View {
+    func pinButton() -> some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                localIsPinned.toggle()
+            }
+            NotificationCenter.default.post(name: .toggleEntryPinnedRequested,
+                                            object: entry.id)
+        }) {
+            HStack {
+                keyImage("command")
+                    .scaleEffect(0.85)
+                keyCharacter("P")
+                    .padding(.leading, -6)
+                Image(systemName: localIsPinned ? "pin.slash.fill" : "pin")
+                    .font(.subheadline)
+                    .foregroundStyle(localIsPinned ? .white : .primary)
+                    .padding(.trailing, 6)
+            }
+            .padding(1)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(localIsPinned
+                          ? AnyShapeStyle(Color.accentColor.opacity(0.9))
+                          : AnyShapeStyle(.secondary.opacity(0.3)))
+            )
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("p", modifiers: .command)
+        .help(localIsPinned ? "Unpin" : "Pin")
+    }
+    
+    @ViewBuilder
+    func languageBar() -> some View {
+        HStack(spacing: 2) {
+            if isImage {
+                Button(action: {}) {
+                    HStack {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.white)
+                            .padding(.leading, 4)
+                        Text("Image")
+                            .foregroundStyle(.blue)
+                            .padding(.trailing, 8)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.secondary.opacity(0.3))
+                    )
+                }
+                .buttonStyle(.plain)
+            } else if isEmoji || isLink {
+                EmptyView()
+            } else if isCode {
+                Button(action: {}) {
+                    HStack {
+                        Image(systemName: "curlybraces")
+                            .bold()
+                            .monospaced()
+                            .foregroundStyle(.white)
+                            .padding(.leading, 4)
+                        Text(entry.codeLanguage?.name ?? "Code")
+                            .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .white)
+                            .padding(.trailing, 8)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.secondary.opacity(0.3))
+                    )
+                }
+                .buttonStyle(.plain)
+            } else if isTranslationSupported == false {
+                EmptyView()
+            } else if languageContext.languages.isEmpty || !isTranslationAvailable {
+                Button(action: {
+                    showingTranslationHelp = true
+                }) {
+                    HStack {
+                        Image(systemName: "translate")
+                            .font(.system(size: 15))
+                            .padding(.leading, 9)
+                            .padding(.bottom, 4)
+                            .padding(.top, 6)
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 15))
+                            .padding(.trailing, 9)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.secondary.opacity(0.3))
+                    )
+                    .scaleEffect(0.9)
+                }
+                .buttonStyle(.plain)
+                .help("Add translation languages")
+                .popover(isPresented: $showingTranslationHelp, arrowEdge: .top) {
+                    TranslationHelpPopover(onRefresh: {
+                        languageContext.refreshLanguages()
+                        showingTranslationHelp = false
+                    })
+                    .background(WindowLevelModifier())
+                }
+            } else {
+                ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
+                    languageButton(
+                        language: item.element,
+                        index: languageContext.languages.firstIndex(of: item.element) ?? 0
+                    )
+                }
+            }
+        }
+        .padding(.top, 7)
+        .padding(.trailing, 7)
+    }
+    
+    @ViewBuilder
+    func languageButton(
+        language: Locale.Language,
+        index: Int
+    ) -> some View {
+        let locale = Locale(identifier: language.maximalIdentifier)
+        let lang = translatedTo ?? textLanguage
+        let isCurrent = language.languageCode == lang?.languageCode
+        Button(action: {
+            $translatingTo.wrappedValue = language
+            NotificationCenter.default.post(name: .translationRequested,
+                                            object: language)
+        }) {
+            HStack {
+                HStack {
+                    if isCurrent {
+                        Image(systemName: "checkmark")
+                            .bold()
+                            .font(.system(size: 15))
+                            .padding(.leading, 4)
+                            .padding(.trailing, 1)
+                    } else if $translatingTo.wrappedValue == language {
+                        ProgressView()
+                            .frame(width: 16, height: 16)
+                            .scaleEffect(0.6)
+                            .padding(.horizontal, 4)
+                    } else {
+                        Image(systemName: "command")
+                        Text("\(index + 1)")
+                            .padding(.leading, -5)
+                    }
+                }
+                .padding(.leading, 6)
+                .padding(.vertical, 5)
+                .padding(.trailing, 0)
+                LanguageFlag(locale: locale, diameter: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .padding(0)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(.secondary.opacity(0.3))
+            )
+            .scaleEffect(0.9)
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(KeyEquivalent(Character("\((index % 9) + 1)")), modifiers: .command)
+        .help("Translate into \(locale.description)")
+        .disabled(isCurrent)
+    }
+    
+    @ViewBuilder
+    func buttonBar() -> some View {
         HStack(spacing: 12) {
             Button(action: {
                 NotificationCenter.default.post(name: .deleteFrontEntryRequested,
@@ -646,7 +610,7 @@ struct ClipboardEntry: View {
     }
     
     @ViewBuilder
-    private func keyImage(_ systemName: String) -> some View {
+    func keyImage(_ systemName: String) -> some View {
         HStack {
             Image(systemName: systemName)
         }
@@ -658,7 +622,7 @@ struct ClipboardEntry: View {
     }
     
     @ViewBuilder
-    private func keyCharacter(_ character: String) -> some View {
+    func keyCharacter(_ character: String) -> some View {
         Text(character)
             .font(.callout)
             .padding(.top, 1)
@@ -671,27 +635,53 @@ struct ClipboardEntry: View {
     }
 }
 
-private struct WindowLevelModifier: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                window.level = .modalPanel
+private extension ClipboardEntry {
+    func calculateThumbnailSize(
+        imageSize: CGSize,
+        containerSize: CGSize,
+        imageAspectRatio: CGFloat
+    ) -> CGSize {
+        let isPortrait = imageAspectRatio < 1.0
+        var calculatedSize: CGSize
+        if isPortrait {
+            let height = containerSize.height * thumbnailHeightScale
+            let width = height * imageAspectRatio
+            if width > containerSize.width * thumbnailWidthScale {
+                let constrainedWidth = containerSize.width * thumbnailWidthScale
+                let constrainedHeight = constrainedWidth / imageAspectRatio
+                calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+            } else {
+                calculatedSize = CGSize(width: width, height: height)
+            }
+        } else {
+            let width = containerSize.width * thumbnailWidthScale
+            let height = width / imageAspectRatio
+            if height > containerSize.height * thumbnailHeightScale {
+                let constrainedHeight = containerSize.height * thumbnailHeightScale
+                let constrainedWidth = constrainedHeight * imageAspectRatio
+                calculatedSize = CGSize(width: constrainedWidth, height: constrainedHeight)
+            } else {
+                calculatedSize = CGSize(width: width, height: height)
             }
         }
-        return view
+        return CGSize(
+            width: min(calculatedSize.width, imageSize.width),
+            height: min(calculatedSize.height, imageSize.height)
+        )
     }
     
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            if let window = nsView.window {
-                window.level = .modalPanel
-            }
+    func linkDestination() -> URL? {
+        if let url = URL(string: entry.original), url.scheme != nil {
+            return url
         }
+        if !entry.original.isEmpty,
+           entry.original.contains("."),
+           let url = URL(string: "https://\(entry.original)") {
+            return url
+        }
+        return nil
     }
-}
-
-private extension ClipboardEntry {
+    
     func translate(to language: Locale.Language) {
         guard let translator else {
             return
@@ -716,6 +706,26 @@ private extension ClipboardEntry {
             DispatchQueue.global(qos: .userInitiated).async {
                 let image = NSImage(data: data)
                 cont.resume(returning: image)
+            }
+        }
+    }
+}
+
+private struct WindowLevelModifier: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                window.level = .modalPanel
+            }
+        }
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let window = nsView.window {
+                window.level = .modalPanel
             }
         }
     }

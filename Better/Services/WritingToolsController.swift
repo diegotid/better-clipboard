@@ -23,18 +23,6 @@ final class WritingToolsController: ObservableObject {
     weak var textView: NSTextView?
     var onUnavailable: (() -> Void)?
     private var pendingDismissal: DispatchWorkItem?
-
-    private func ensureSelectionIfNeeded(_ tv: NSTextView) {
-        let range = tv.selectedRange()
-        if range.length == 0 {
-            if let storage = tv.textStorage, !storage.string.isEmpty {
-                let string = storage.string as NSString
-                let loc = min(range.location == NSNotFound ? tv.selectedRange().location : range.location, string.length)
-                let paraRange = string.paragraphRange(for: NSRange(location: max(0, loc), length: 0))
-                tv.setSelectedRange(paraRange)
-            }
-        }
-    }
     
     @discardableResult
     func showWritingToolsPanel() -> Bool {
@@ -96,5 +84,19 @@ final class WritingToolsController: ObservableObject {
         }
         pendingDismissal = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+}
+
+private extension WritingToolsController {
+    func ensureSelectionIfNeeded(_ tv: NSTextView) {
+        let range = tv.selectedRange()
+        if range.length == 0 {
+            if let storage = tv.textStorage, !storage.string.isEmpty {
+                let string = storage.string as NSString
+                let loc = min(range.location == NSNotFound ? tv.selectedRange().location : range.location, string.length)
+                let paraRange = string.paragraphRange(for: NSRange(location: max(0, loc), length: 0))
+                tv.setSelectedRange(paraRange)
+            }
+        }
     }
 }

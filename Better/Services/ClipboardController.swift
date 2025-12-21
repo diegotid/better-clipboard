@@ -25,7 +25,7 @@ final class ClipboardController: ObservableObject {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder.appendingPathComponent("clipboard-history.json")
     }()
-
+    
     init() {
         loadHistory()
         start()
@@ -39,7 +39,7 @@ final class ClipboardController: ObservableObject {
             }
         }
     }
-
+    
     func start() {
         watcher.start { [weak self] content in
             guard let self = self else {
@@ -85,7 +85,7 @@ final class ClipboardController: ObservableObject {
             }
         }
     }
-
+    
     func saveHistory() {
         do {
             let data = try JSONEncoder().encode(history)
@@ -94,24 +94,11 @@ final class ClipboardController: ObservableObject {
             print("Failed to save clipboard history: \(error)")
         }
     }
-
-    private func loadHistory() {
-        guard FileManager.default.fileExists(atPath: historyFileURL.path) else {
-            return
-        }
-        do {
-            let data = try Data(contentsOf: historyFileURL)
-            let loaded = try JSONDecoder().decode([CopiedContent].self, from: data)
-            history = Array(loaded.prefix(capacity))
-        } catch {
-            print("Failed to load clipboard history: \(error)")
-        }
-    }
-
+    
     func removeEntry(with id: UUID) {
         history.removeAll { $0.id == id }
     }
-
+    
     func updateRewritten(for id: UUID, value: String?, language: Locale.Language?) {
         guard let index = history.firstIndex(where: { $0.id == id }) else {
             return
@@ -121,8 +108,10 @@ final class ClipboardController: ObservableObject {
         entry.updateLanguage(language)
         history[index] = entry
     }
-    
-    private func insert(entry: CopiedContent) {
+}
+
+private extension ClipboardController {
+    func insert(entry: CopiedContent) {
         let existing = history.first {
             $0.contentType != .image &&
             ($0.rewritten ?? $0.original) == entry.original
@@ -139,23 +128,36 @@ final class ClipboardController: ObservableObject {
             Task.detached { [entryID, entryOriginal] in
                 let codeLang = await MainActor.run { CodeDetector.detectCode(in: entryOriginal) }
                 await MainActor.run {
-                    guard let idx = self.history.firstIndex(where: { $0.id == entryID }) else { return }
-                    var updatedEntry = self.history[idx]
+                    guard let index = self.history.firstIndex(where: { $0.id == entryID }) else { return }
+                    var updatedEntry = self.history[index]
                     updatedEntry.setCodeLanguage(codeLang)
-                    self.history[idx] = updatedEntry
+                    self.history[index] = updatedEntry
                 }
             }
         }
     }
     
-    private func updateLinkMetadata(for id: UUID, metatags: LinkMetatags) {
+    func loadHistory() {
+        guard FileManager.default.fileExists(atPath: historyFileURL.path) else {
+            return
+        }
+        do {
+            let data = try Data(contentsOf: historyFileURL)
+            let loaded = try JSONDecoder().decode([CopiedContent].self, from: data)
+            history = Array(loaded.prefix(capacity))
+        } catch {
+            print("Failed to load clipboard history: \(error)")
+        }
+    }
+    
+    func updateLinkMetadata(for id: UUID, metatags: LinkMetatags) {
         guard let index = history.firstIndex(where: { $0.id == id }) else { return }
         var entry = history[index]
         entry.linkMetatags = metatags
         history[index] = entry
     }
     
-    private func togglePin(for id: UUID) {
+    func togglePin(for id: UUID) {
         guard let index = history.firstIndex(where: { $0.id == id }) else { return }
         var entry = history[index]
         entry.isPinned.toggle()

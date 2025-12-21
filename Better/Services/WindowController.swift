@@ -66,7 +66,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
             entry.original.lowercased().contains(lowercasedSearch)
         }
     }
-
+    
     private lazy var toggleMenuItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "",
@@ -78,7 +78,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.image = NSImage(systemSymbolName: "sparkles.rectangle.stack.fill", accessibilityDescription: nil)
         return item
     }()
-
+    
     private lazy var clearItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Clear Clipboard History",
@@ -90,7 +90,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
         return item
     }()
-
+    
     private lazy var settingsItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Settings…",
@@ -102,7 +102,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         return item
     }()
-
+    
     private lazy var restorePurchasesItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Restore Purchases",
@@ -113,7 +113,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
         return item
     }()
-
+    
     private lazy var aboutMenuItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "About Better",
@@ -124,7 +124,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
         return item
     }()
-
+    
     private lazy var quitItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Quit Better",
@@ -135,7 +135,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         item.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
         return item
     }()
-
+    
     init(clipboard: ClipboardController) async {
         self.clipboard = clipboard
         self.translator = Translator()
@@ -198,7 +198,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
         }
     }
-
+    
     deinit {
         if let observer = resignActiveObserver {
             NotificationCenter.default.removeObserver(observer)
@@ -212,12 +212,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
         if let observer = deleteRequestObserver {
             NotificationCenter.default.removeObserver(observer)
         }
-        settingsPopover?.close()
-        proPopover?.close()
-        if let aboutWin = aboutWindow {
-            Task { @MainActor in
-                aboutWin.close()
-            }
+        MainActor.assumeIsolated {
+            settingsPopover?.close()
+            proPopover?.close()
+            aboutWindow?.close()
         }
     }
     
@@ -228,14 +226,16 @@ final class WindowController: NSObject, NSMenuItemValidation {
         hasPresentedInitialWindows = true
         showWindows(presentEmptyAlert: false, captureLastApp: false)
     }
+}
 
-    private enum RotationDirection {
+private extension WindowController {
+    enum RotationDirection {
         case older
         case newer
     }
 
     @objc
-    private func toggleWindow(_ sender: Any?) {
+    func toggleWindow(_ sender: Any?) {
         if showingWindows {
             closeWindows()
         } else {
@@ -243,7 +243,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
     
-    private func pasteFrontMost() {
+    func pasteFrontMost() {
         guard let _ = windows.first,
               let frontEntry = entries.first else {
             closeWindows()
@@ -266,18 +266,18 @@ final class WindowController: NSObject, NSMenuItemValidation {
         layoutWindows(animated: false)
     }
     
-    private func handleCopyEntry(_ final: String) {
+    func handleCopyEntry(_ final: String) {
         copy(final)
     }
     
-    private func updateBaseHistory(_ history: [CopiedContent]) {
+    func updateBaseHistory(_ history: [CopiedContent]) {
         baseHistory = history
         entryIndexLookup = Dictionary(uniqueKeysWithValues: history.enumerated().map {
             ($0.element.id, $0.offset)
         })
     }
 
-    private func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
+    func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
         if captureLastApp {
             lastActiveApp = NSWorkspace.shared.frontmostApplication
         }
@@ -306,7 +306,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         updateToggleMenuTitle()
     }
 
-    private func closeWindows() {
+    func closeWindows() {
         for (window, _) in windows {
             window.orderOut(nil)
             window.close()
@@ -327,7 +327,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         updateToggleMenuTitle()
     }
 
-    private func presentEmptyClipboardAlert() {
+    func presentEmptyClipboardAlert() {
         let alert = NSAlert()
         alert.messageText = "Clipboard is Empty"
         alert.informativeText = "Copy something first to see it here."
@@ -340,7 +340,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func deleteFrontEntry(requestedID: UUID? = nil) {
+    func deleteFrontEntry(requestedID: UUID? = nil) {
         guard let frontEntry = entries.first else {
             return
         }
@@ -350,7 +350,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         self.deleteFrontEntry(frontEntry)
     }
 
-    private func deleteFrontEntry(_ entry: CopiedContent) {
+    func deleteFrontEntry(_ entry: CopiedContent) {
         guard !windows.isEmpty else {
             clipboard.removeEntry(with: entry.id)
             return
@@ -392,7 +392,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func configureStatusBarItem() {
+    func configureStatusBarItem() {
         guard let button = statusBarItem.button else {
             return
         }
@@ -413,12 +413,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
         updateToggleMenuTitle()
     }
 
-    private func updateToggleMenuTitle() {
+    func updateToggleMenuTitle() {
         toggleMenuItem.title = showingWindows ? "Hide Clipboard" : "Show Clipboard"
     }
 
     @objc
-    private func clearClipboardHistoryAction(_ sender: Any?) {
+    func clearClipboardHistoryAction(_ sender: Any?) {
         let alert = NSAlert()
         alert.messageText = "Clear Clipboard History?"
         alert.informativeText = "This will permanently remove all clipboard items stored by Better. This action cannot be undone."
@@ -446,17 +446,17 @@ final class WindowController: NSObject, NSMenuItemValidation {
     }
 
     @objc
-    private func quitAction(_ sender: Any?) {
+    func quitAction(_ sender: Any?) {
         NSApp.terminate(nil)
     }
 
     @objc
-    private func showSettings(_ sender: Any?) {
+    func showSettings(_ sender: Any?) {
         toggleSettingsPopover()
     }
 
     @objc
-    private func restorePurchases(_ sender: Any?) {
+    func restorePurchases(_ sender: Any?) {
         Task {
             var foundEntitlement = false
             for await result in Transaction.currentEntitlements {
@@ -485,11 +485,11 @@ final class WindowController: NSObject, NSMenuItemValidation {
     }
 
     @objc
-    private func showPro(_ sender: Any?) {
+    func showPro(_ sender: Any?) {
         toggleProPopover()
     }
 
-    private func toggleProPopover() {
+    func toggleProPopover() {
         if let popover = proPopover, popover.isShown {
             hideProPopover()
         } else {
@@ -497,7 +497,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func showProPopover() {
+    func showProPopover() {
         guard let button = statusBarItem.button else {
             return
         }
@@ -520,12 +520,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func hideProPopover() {
+    func hideProPopover() {
         proPopover?.performClose(nil)
         proPopover = nil
     }
 
-    private func toggleSettingsPopover() {
+    func toggleSettingsPopover() {
         if let popover = settingsPopover, popover.isShown {
             hideSettingsPopover()
         } else {
@@ -533,7 +533,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func showSettingsPopover() {
+    func showSettingsPopover() {
         guard let button = statusBarItem.button else {
             return
         }
@@ -551,13 +551,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func hideSettingsPopover() {
+    func hideSettingsPopover() {
         settingsPopover?.performClose(nil)
         settingsPopover = nil
     }
 
     @objc
-    private func showAboutWindow(_ sender: Any?) {
+    func showAboutWindow(_ sender: Any?) {
         if let aboutWin = aboutWindow {
             aboutWin.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -594,11 +594,11 @@ final class WindowController: NSObject, NSMenuItemValidation {
     }
 
     @objc
-    private func aboutWindowWillClose(_ notification: Notification) {
+    func aboutWindowWillClose(_ notification: Notification) {
         aboutWindow = nil
     }
 
-    private func registerHotKey() {
+    func registerHotKey() {
         let keyCode = UInt32(kVK_ANSI_V)
         let modifiers = UInt32(cmdKey | shiftKey)
         KeyboardListener.shared.register(keyCode: keyCode, modifiers: modifiers) { [weak self] in
@@ -613,7 +613,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
     
-    private func handleEntryUpdate(id: UUID, text: String, language: Locale.Language?) {
+    func handleEntryUpdate(id: UUID, text: String, language: Locale.Language?) {
         clipboard.updateRewritten(for: id, value: text, language: language)
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].updateRewritten(text)
@@ -626,7 +626,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         clipboard.saveHistory()
     }
 
-    private func refreshEntriesAfterPinToggle() {
+    func refreshEntriesAfterPinToggle() {
         guard showingWindows else { return }
         beginEntriesUpdate()
         defer { finishEntriesUpdate() }
@@ -670,7 +670,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func createWindow(for entry: CopiedContent) -> (NSWindow, NSHostingController<AnyView>) {
+    func createWindow(for entry: CopiedContent) -> (NSWindow, NSHostingController<AnyView>) {
         let entryView = AnyView(
             ClipboardEntry(
                 entry: entry,
@@ -712,14 +712,14 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return (window, hostingController)
     }
 
-    private func closeWindowPairs(_ windowPairs: [(window: NSWindow, host: NSHostingController<AnyView>)]) {
+    func closeWindowPairs(_ windowPairs: [(window: NSWindow, host: NSHostingController<AnyView>)]) {
         for (window, _) in windowPairs {
             window.orderOut(nil)
             window.close()
         }
     }
 
-    private func makeBlurView(container: NSView) -> NSVisualEffectView {
+    func makeBlurView(container: NSView) -> NSVisualEffectView {
         let view = NSVisualEffectView(frame: container.bounds)
         view.autoresizingMask = [.width, .height]
         view.blendingMode = .behindWindow
@@ -729,8 +729,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return view
     }
 
-    private func makeHostingView<Content: View>(container: NSView,
-                                                hostingController: NSHostingController<Content>) -> NSView {
+    func makeHostingView<Content: View>(container: NSView,
+                                        hostingController: NSHostingController<Content>) -> NSView {
         let view = hostingController.view
         view.frame = container.bounds
         view.autoresizingMask = [.width, .height]
@@ -741,7 +741,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return view
     }
 
-    private func animateRemoval(of window: NSWindow, completion: @escaping () -> Void) {
+    func animateRemoval(of window: NSWindow, completion: @escaping () -> Void) {
         guard window.contentView != nil else {
             completion()
             return
@@ -758,7 +758,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         })
     }
 
-    private func layoutWindows(animated: Bool) {
+    func layoutWindows(animated: Bool) {
         guard !windows.isEmpty, windows.count == entries.count else {
             if windows.isEmpty {
                 statusOverlayContext.update(index: 0, total: 0)
@@ -899,7 +899,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func statusOverlayComponents() -> (NSWindow, NSHostingController<StatusOverlayBar>) {
+    func statusOverlayComponents() -> (NSWindow, NSHostingController<StatusOverlayBar>) {
         if let window = statusOverlayBar,
            let host = statusOverlayHostingController {
             return (window, host)
@@ -948,7 +948,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return (panel, host)
     }
 
-    private func updateStatusOverlayBar(
+    func updateStatusOverlayBar(
         frontFrame: NSRect,
         referenceWindow: NSWindow,
         screenFrame: NSRect,
@@ -1010,7 +1010,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         window.order(.above, relativeTo: referenceWindow.windowNumber)
     }
 
-    private func hideStatusOverlayBar() {
+    func hideStatusOverlayBar() {
         guard let window = statusOverlayBar else {
             return
         }
@@ -1019,7 +1019,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func installEventMonitors() {
+    func installEventMonitors() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else {
                 return event
@@ -1111,7 +1111,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func shouldAllowScrollForEditor(event: NSEvent) -> Bool {
+    func shouldAllowScrollForEditor(event: NSEvent) -> Bool {
         guard let window = event.window else {
             return false
         }
@@ -1124,7 +1124,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return hitView.isDescendantOfScrollableEditor
     }
 
-    private func rewriteFrontMost() {
+    func rewriteFrontMost() {
         guard let frontEntry = entries.first else {
             return
         }
@@ -1132,7 +1132,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
                                         object: frontEntry.id)
     }
     
-    private func toggleFrontMostPinned() {
+    func toggleFrontMostPinned() {
         guard let frontEntry = entries.first else {
             return
         }
@@ -1140,11 +1140,11 @@ final class WindowController: NSObject, NSMenuItemValidation {
                                         object: frontEntry.id)
     }
     
-    private func togglePinFilter() {
+    func togglePinFilter() {
         statusOverlayContext.filterPinned.toggle()
     }
     
-    private func focusSearchBar() {
+    func focusSearchBar() {
         guard showingWindows else {
             return
         }
@@ -1153,12 +1153,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
         NotificationCenter.default.post(name: .searchEntriesRequested, object: nil)
     }
 
-    private func beginEntriesUpdate() {
+    func beginEntriesUpdate() {
         entriesUpdateResetTask?.cancel()
         statusOverlayContext.setUpdatingEntries(true)
     }
 
-    private func finishEntriesUpdate(after delay: TimeInterval = 0.0) {
+    func finishEntriesUpdate(after delay: TimeInterval = 0.0) {
         entriesUpdateResetTask?.cancel()
         let task = DispatchWorkItem { [weak self] in
             self?.statusOverlayContext.setUpdatingEntries(false)
@@ -1167,7 +1167,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: task)
     }
 
-    private func handleSearchTextChange(_ newValue: String) {
+    func handleSearchTextChange(_ newValue: String) {
         guard searchText != newValue else {
             finishEntriesUpdate()
             return
@@ -1209,7 +1209,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         updateToggleMenuTitle()
     }
     
-    private func handleFilterPinnedChange(_ newValue: Bool) {
+    func handleFilterPinnedChange(_ newValue: Bool) {
         guard statusOverlayContext.filterPinned == newValue else {
             return
         }
@@ -1256,7 +1256,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func paste(entry: CopiedContent) {
+    func paste(entry: CopiedContent) {
         switch entry.contentType {
         case .image:
             pasteImage(entry.imageData)
@@ -1265,14 +1265,14 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
     }
 
-    private func paste(_ string: String) {
+    func paste(_ string: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
         sendPasteToLastActiveApp()
     }
 
-    private func pasteImage(_ data: Data?) {
+    func pasteImage(_ data: Data?) {
         guard let data else {
             return
         }
@@ -1287,7 +1287,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         sendPasteToLastActiveApp()
     }
 
-    private func sendPasteToLastActiveApp() {
+    func sendPasteToLastActiveApp() {
         if let lastApp = lastActiveApp {
             _ = lastApp.activate(options: [.activateAllWindows])
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -1304,13 +1304,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
         lastActiveApp = nil
     }
     
-    private func copy(_ string: String) {
+    func copy(_ string: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
     }
 
-    private func rotateWheel(direction: RotationDirection) {
+    func rotateWheel(direction: RotationDirection) {
         guard windows.count > 1,
               windows.count == entries.count else {
             return
@@ -1340,7 +1340,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
         layoutWindows(animated: true)
     }
 
-    private func wrapToFirstEntry() {
+    func wrapToFirstEntry() {
         guard windows.count > 1,
               windows.count == entries.count else {
             return
@@ -1359,7 +1359,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     }
 
     @discardableResult
-    private func clearSearchTextIfNeeded() -> Bool {
+    func clearSearchTextIfNeeded() -> Bool {
         let trimmed = statusOverlayContext.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else {
             return false

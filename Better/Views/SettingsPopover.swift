@@ -13,14 +13,13 @@ struct SettingsPopover: View {
     @State private var launchAtLogin = false
     @State private var isProcessing = false
     @State private var errorMessage: String?
-    
     @State private var unlocked: Bool = false
     @State private var maxPinnedEntries: Int = 3
     @State private var manager = PurchaseManager()
     
     @AppStorage("maxHistoryEntries")
     private var maxHistoryEntries: Int = PurchaseManager.defaultHistoryLimit
-
+    
     var body: some View {
         Form {
             VStack(alignment: .leading) {
@@ -141,13 +140,15 @@ struct SettingsPopover: View {
             }
         }
     }
+}
 
-    private func loadLaunchAtLoginState() {
+private extension SettingsPopover {
+    func loadLaunchAtLoginState() {
         let service = SMAppService.mainApp
         launchAtLogin = service.status == .enabled || service.status == .requiresApproval
     }
 
-    private func toggleLaunchAtLogin(_ isOn: Bool) {
+    func toggleLaunchAtLogin(_ isOn: Bool) {
         let service = SMAppService.mainApp
         isProcessing = true
         errorMessage = nil
@@ -173,7 +174,7 @@ struct SettingsPopover: View {
         }
     }
     
-    private func checkLifetimeUnlocked() async {
+    func checkLifetimeUnlocked() async {
         var foundEntitlement = false
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,

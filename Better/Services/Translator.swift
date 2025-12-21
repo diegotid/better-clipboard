@@ -55,12 +55,12 @@ actor Translator {
         }
         return false
     }
-
+    
     func configure(target: Locale.Language? = nil) async {
         targetLanguage = target
         sessions.removeAll()
     }
-
+    
     func reconfigureIfNeeded(target: Locale.Language?) async {
         guard targetLanguage != target else {
             return
@@ -68,7 +68,7 @@ actor Translator {
         targetLanguage = target
         sessions.removeAll()
     }
-
+    
     func translate(_ text: String) async throws -> String {
         guard isTranslationSupported else {
             return text
@@ -91,7 +91,7 @@ actor Translator {
             return text
         }
     }
-
+    
     func detectLanguage(for text: String) -> Locale.Language? {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
@@ -111,9 +111,16 @@ actor Translator {
             return false
         }
     }
+}
 
+private extension Translator {
+    struct SessionKey: Hashable {
+        let source: Locale.Language
+        let target: Locale.Language
+    }
+    
     @available(macOS 26.0, *)
-    private func sessionForTranslation(for key: SessionKey) async throws -> TranslationSession {
+    func sessionForTranslation(for key: SessionKey) async throws -> TranslationSession {
         if let cached = sessions[key] {
             return cached
         }
@@ -136,10 +143,5 @@ actor Translator {
         } catch {
             throw TranslatorError.languagePackMissing(source: key.source, target: key.target)
         }
-    }
-
-    private struct SessionKey: Hashable {
-        let source: Locale.Language
-        let target: Locale.Language
     }
 }

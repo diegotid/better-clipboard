@@ -10,13 +10,13 @@ import Carbon.HIToolbox
 @MainActor
 final class KeyboardListener {
     static let shared = KeyboardListener()
-
+    
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
     private var callback: (() -> Void)?
-
+    
     private init() {}
-
+    
     func register(keyCode: UInt32, modifiers: UInt32, handler: @escaping () -> Void) {
         unregister()
         callback = handler
@@ -50,7 +50,7 @@ final class KeyboardListener {
             NSLog("Failed to install hot key handler: \(result)")
         }
     }
-
+    
     func unregister() {
         if let handler = eventHandler {
             RemoveEventHandler(handler)
@@ -62,8 +62,10 @@ final class KeyboardListener {
         }
         callback = nil
     }
+}
 
-    private func invoke() {
+private extension KeyboardListener {
+    func invoke() {
         guard let callback else {
             return
         }

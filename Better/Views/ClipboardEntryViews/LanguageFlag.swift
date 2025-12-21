@@ -26,8 +26,10 @@ struct LanguageFlag: View {
         }
         .frame(width: diameter, height: diameter)
     }
-    
-    private func flagEmoji(for regionCode: String) -> String {
+}
+
+private extension LanguageFlag {
+    func flagEmoji(for regionCode: String) -> String {
         let base: UInt32 = 0x1F1E6 // "A"
         return regionCode
             .uppercased()
@@ -37,7 +39,7 @@ struct LanguageFlag: View {
             .joined()
     }
 
-    private func flagEmoji(for locale: Locale) -> String? {
+    func flagEmoji(for locale: Locale) -> String? {
         if let region = locale.region?.identifier {
             return flagEmoji(for: region)
         }

@@ -166,48 +166,6 @@ struct StatusOverlayBar: View {
         }
         return true
     }
-
-    private func glowSegment(start: CGFloat, end: CGFloat, lineWidth: CGFloat) -> some View {
-        let gradient = AngularGradient(
-            colors: [
-                Color.white.opacity(0.95),
-                Color.white.opacity(0.4),
-                Color.white.opacity(0.1),
-                Color.white.opacity(0.95)
-            ],
-            center: .center
-        )
-        let normalizedStart = start.truncatingRemainder(dividingBy: 1)
-        let normalizedEnd = end
-        return ZStack {
-            glowSegmentPart(from: normalizedStart,
-                            to: min(normalizedEnd, 1),
-                            gradient: gradient,
-                            lineWidth: lineWidth)
-            if normalizedEnd > 1 {
-                glowSegmentPart(from: 0,
-                                to: normalizedEnd - 1,
-                                gradient: gradient,
-                                lineWidth: lineWidth)
-            }
-        }
-    }
-
-    private func glowSegmentPart(from: CGFloat,
-                                 to: CGFloat,
-                                 gradient: AngularGradient,
-                                 lineWidth: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: borderCornerRadius, style: .continuous)
-            .trim(from: from, to: to)
-            .stroke(gradient,
-                    style: StrokeStyle(
-                        lineWidth: lineWidth,
-                        lineCap: .round,
-                        lineJoin: .round
-                    )
-            )
-            .blur(radius: 1.4)
-    }
     
     @ViewBuilder
     private func toggleFilterPinnedButton() -> some View {
@@ -314,5 +272,49 @@ struct StatusOverlayBar: View {
         .scaleEffect(0.85)
         .keyboardShortcut(.upArrow, modifiers: .command)
         .help("Jump back to the newest entry")
+    }
+}
+
+private extension StatusOverlayBar {
+    func glowSegment(start: CGFloat, end: CGFloat, lineWidth: CGFloat) -> some View {
+        let gradient = AngularGradient(
+            colors: [
+                Color.white.opacity(0.95),
+                Color.white.opacity(0.4),
+                Color.white.opacity(0.1),
+                Color.white.opacity(0.95)
+            ],
+            center: .center
+        )
+        let normalizedStart = start.truncatingRemainder(dividingBy: 1)
+        let normalizedEnd = end
+        return ZStack {
+            glowSegmentPart(from: normalizedStart,
+                            to: min(normalizedEnd, 1),
+                            gradient: gradient,
+                            lineWidth: lineWidth)
+            if normalizedEnd > 1 {
+                glowSegmentPart(from: 0,
+                                to: normalizedEnd - 1,
+                                gradient: gradient,
+                                lineWidth: lineWidth)
+            }
+        }
+    }
+    
+    func glowSegmentPart(from: CGFloat,
+                         to: CGFloat,
+                         gradient: AngularGradient,
+                         lineWidth: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: borderCornerRadius, style: .continuous)
+            .trim(from: from, to: to)
+            .stroke(gradient,
+                    style: StrokeStyle(
+                        lineWidth: lineWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+            )
+            .blur(radius: 1.4)
     }
 }
