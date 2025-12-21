@@ -36,6 +36,7 @@ struct BetterApp: App {
     var body: some Scene {
         Settings {
             SettingsPopover()
+                .environmentObject(clipboardController)
         }
     }
 }

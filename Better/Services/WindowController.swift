@@ -541,7 +541,10 @@ private extension WindowController {
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(rootView: SettingsPopover())
+        popover.contentViewController = NSHostingController(
+            rootView: SettingsPopover()
+                .environmentObject(clipboard)
+        )
         settingsPopover = popover
         popover.show(
             relativeTo: button.bounds,

@@ -174,3 +174,11 @@ extension Character {
     }
 }
 
+extension ClipboardController {
+    func trimHistory(to newLimit: Int) {
+        guard newLimit >= 0 else { return }
+        if history.count > newLimit {
+            history = Array(history.prefix(newLimit))
+        }
+    }
+}
