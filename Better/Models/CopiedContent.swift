@@ -20,7 +20,6 @@ struct CopiedContent: Identifiable, Codable, Hashable {
     var isPinned: Bool
     let original: String
     let contentType: CopiedContentType
-    // Set asynchronously after initialization.
     var codeLanguage: ProgrammingLanguage?
     var linkMetatags: LinkMetatags?
     let imageData: Data?
@@ -47,9 +46,10 @@ struct CopiedContent: Identifiable, Codable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id
         case date
+        case isPinned
         case original
         case contentType
-        case isPinned
+        case codeLanguage
         case linkMetatags
         case imageData
         case rewritten
@@ -60,9 +60,10 @@ struct CopiedContent: Identifiable, Codable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         date = try container.decode(Date.self, forKey: .date)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
         original = try container.decode(String.self, forKey: .original)
         contentType = try container.decodeIfPresent(CopiedContentType.self, forKey: .contentType) ?? .text
-        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        codeLanguage = try container.decodeIfPresent(ProgrammingLanguage.self, forKey: .codeLanguage)
         linkMetatags = try container.decodeIfPresent(LinkMetatags.self, forKey: .linkMetatags)
         imageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
         rewritten = try container.decodeIfPresent(String.self, forKey: .rewritten)
@@ -73,9 +74,10 @@ struct CopiedContent: Identifiable, Codable, Hashable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(date, forKey: .date)
+        try container.encode(isPinned, forKey: .isPinned)
         try container.encode(original, forKey: .original)
         try container.encode(contentType, forKey: .contentType)
-        try container.encode(isPinned, forKey: .isPinned)
+        try container.encode(codeLanguage, forKey: .codeLanguage)
         try container.encode(linkMetatags, forKey: .linkMetatags)
         try container.encode(imageData, forKey: .imageData)
         try container.encode(rewritten, forKey: .rewritten)

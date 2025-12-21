@@ -7,9 +7,37 @@
 
 import SwiftUI
 
-struct ProgrammingLanguage: Equatable, Hashable {
+struct ProgrammingLanguage: Equatable, Codable, Hashable {
     let name: String
     let color: Color?
+    
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case colorHex
+    }
+    
+    init(name: String, color: Color?) {
+        self.name = name
+        self.color = color
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        if let hexString = try container.decodeIfPresent(String.self, forKey: .colorHex) {
+            color = Color(hex: hexString)
+        } else {
+            color = nil
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        if let color = color, let hexString = color.toHex() {
+            try container.encode(hexString, forKey: .colorHex)
+        }
+    }
 }
 
 struct CodePattern {
@@ -265,3 +293,14 @@ let codePatterns: [CodePattern] = [
     )
 ]
 
+extension Color {
+    func toHex() -> String? {
+        guard let comps = components else {
+            return nil
+        }
+        let r = Int(comps.red * 255)
+        let g = Int(comps.green * 255)
+        let b = Int(comps.blue * 255)
+        return String(format: "%02X%02X%02X", r, g, b)
+    }
+}
