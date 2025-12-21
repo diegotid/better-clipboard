@@ -460,9 +460,11 @@ struct ClipboardEntry: View {
                     keyImage("command")
                     keyImage("delete.left")
                         .padding(.leading, -6)
-                    Text("Delete")
-                        .font(.body)
-                        .padding(.trailing, 8)
+                    Image(systemName: "trash")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .padding(.trailing, 3)
+                        .transition(.scale.combined(with: .opacity))
                 }
                 .padding(3)
                 .background(
