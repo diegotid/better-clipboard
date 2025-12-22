@@ -11,6 +11,27 @@
         {
           "blend-mode-specializations" : [
             {
+              "value" : "lighten"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "darken"
+            }
+          ],
+          "image-name-specializations" : [
+            {
+              "value" : "clip.png"
+            },
+            {
+              "idiom" : "square",
+              "value" : "clip.png"
+            }
+          ],
+          "name" : "clip"
+        },
+        {
+          "blend-mode-specializations" : [
+            {
               "value" : "normal"
             },
             {

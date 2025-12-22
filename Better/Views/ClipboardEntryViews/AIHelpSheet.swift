@@ -19,7 +19,7 @@ struct AIHelpSheet: View {
                 .font(.title)
                 .bold()
             Text("""
-Better can’t open Apple Writing Tools because Apple Intelligence is turned off or unavailable.
+Better Clipboard can’t open Apple Writing Tools because Apple Intelligence is turned off or unavailable.
 
 Requirements:
 • macOS 15.1 or later on Apple silicon (M1 or newer)

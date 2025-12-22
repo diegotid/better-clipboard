@@ -38,7 +38,7 @@ struct SettingsPopover: View {
                     }, set: { newValue in
                         toggleLaunchAtLogin(newValue)
                     })) {
-                        Text("Launch Better at login")
+                        Text("Launch at login")
                     }
                     .padding(.top, 7)
                     .disabled(isProcessing)
@@ -51,7 +51,7 @@ struct SettingsPopover: View {
                     Text("General")
                         .bold()
                 } footer: {
-                    Text("Enable this option to automatically start Better when you launch MacOS.")
+                    Text("Enable this option to automatically start Better Clipboard when you launch MacOS.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -88,7 +88,7 @@ struct SettingsPopover: View {
                         .padding(.top, 4)
                         HStack {
                             Image(systemName: "lock.open")
-                            Text("Clipboard size unlocked")
+                            Text("Better Clipboard Pro unlocked")
                         }
                         .padding(.top, 6)
                         Text("Unlimited pinned entries available.")
@@ -123,7 +123,7 @@ struct SettingsPopover: View {
                         }) {
                             HStack {
                                 Image(systemName: "lock.open")
-                                Text("Unlock Lifetime")
+                                Text("Pro Lifetime Purchase")
                                 Spacer()
                                 Text(product.displayPrice)
                             }

@@ -30,7 +30,7 @@ struct About: View {
                     .cornerRadius(18)
                     .frame(maxWidth: Frame.aboutIconSize, maxHeight: Frame.aboutIconSize)
             }
-            Text("Better")
+            Text("Better Clipboard")
                 .font(.title)
                 .bold()
                 .padding(.bottom, 10)

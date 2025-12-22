@@ -15,7 +15,7 @@ struct ProPopover: View {
             HStack {
                 Image(systemName: "sparkles")
                     .foregroundStyle(.yellow)
-                Text("Better Pro")
+                Text("Better Clipboard Pro")
                     .font(.title3)
                     .bold()
             }

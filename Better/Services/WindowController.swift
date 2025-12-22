@@ -116,7 +116,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     
     private lazy var aboutMenuItem: NSMenuItem = {
         let item = NSMenuItem(
-            title: "About Better",
+            title: "About Better Clipboard",
             action: #selector(showAboutWindow(_:)),
             keyEquivalent: ""
         )
@@ -127,7 +127,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     
     private lazy var quitItem: NSMenuItem = {
         let item = NSMenuItem(
-            title: "Quit Better",
+            title: "Quit Better Clipboard",
             action: #selector(quitAction(_:)),
             keyEquivalent: "q"
         )
