@@ -8,6 +8,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import StoreKit
 
 @MainActor
 final class ClipboardController: ObservableObject {
@@ -162,8 +163,36 @@ private extension ClipboardController {
     func togglePin(for id: UUID) {
         guard let index = history.firstIndex(where: { $0.id == id }) else { return }
         var entry = history[index]
-        entry.isPinned.toggle()
-        history[index] = entry
+        if !entry.isPinned {
+            Task {
+                let isUnlocked = await checkIfUnlocked()
+                await MainActor.run {
+                    if !isUnlocked {
+                        let pinnedCount = self.history.filter { $0.isPinned }.count
+                        let maxPinnedEntries = 3
+                        if pinnedCount >= maxPinnedEntries {
+                            return
+                        }
+                    }
+                    var updatedEntry = self.history[index]
+                    updatedEntry.isPinned.toggle()
+                    self.history[index] = updatedEntry
+                }
+            }
+        } else {
+            entry.isPinned.toggle()
+            history[index] = entry
+        }
+    }
+    
+    private func checkIfUnlocked() async -> Bool {
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let transaction) = result,
+               transaction.productID == PurchaseManager.unlockProductID {
+                return true
+            }
+        }
+        return false
     }
 }
 

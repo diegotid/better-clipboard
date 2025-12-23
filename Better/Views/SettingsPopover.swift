@@ -88,7 +88,7 @@ struct SettingsPopover: View {
                         .padding(.top, 4)
                         HStack {
                             Image(systemName: "lock.open")
-                            Text("Better Clipboard Pro unlocked")
+                            Text("Pro unlocked")
                         }
                         .padding(.top, 6)
                         Text("Unlimited pinned entries available.")
@@ -106,7 +106,7 @@ struct SettingsPopover: View {
                                     .multilineTextAlignment(.trailing)
                                     .disabled(!unlocked)
                             }
-                            Text("Unlock clipboard size to get unlimited pinned entries.")
+                            Text("Unlock Pro for unlimited pins and custom history size.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -123,7 +123,7 @@ struct SettingsPopover: View {
                         }) {
                             HStack {
                                 Image(systemName: "lock.open")
-                                Text("Pro Lifetime Purchase")
+                                Text("Pro (lifetime)")
                                 Spacer()
                                 Text(product.displayPrice)
                             }
@@ -132,11 +132,12 @@ struct SettingsPopover: View {
                         }
                         .disabled(manager.isLoading)
                         .buttonStyle(.borderedProminent)
+                        .tint(.green)
                         .padding(.top, 3)
                     }
                 } header: {
                     HStack {
-                        Text("Clipboard size")
+                        Text("History size")
                             .bold()
                         if !unlocked {
                             Image(systemName: "lock.fill")

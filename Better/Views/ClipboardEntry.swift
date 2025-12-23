@@ -11,6 +11,7 @@ internal import AppKit
 struct ClipboardEntry: View {
     var entry: CopiedContent
     let isFrontMost: Bool
+    let canPin: Bool
     let onChange: (UUID, String, Locale.Language?) -> Void
     let onPaste: () -> Void
     let onCopy: (String) -> Void
@@ -48,6 +49,7 @@ struct ClipboardEntry: View {
     init(
         entry: CopiedContent,
         isFrontMost: Bool,
+        canPin: Bool = true,
         onChange: @escaping (UUID, String, Locale.Language?) -> Void,
         onPaste: @escaping () -> Void,
         onCopy: @escaping (String) -> Void,
@@ -55,6 +57,7 @@ struct ClipboardEntry: View {
     ) {
         self.entry = entry
         self.isFrontMost = isFrontMost
+        self.canPin = canPin
         self.onChange = onChange
         self.onPaste = onPaste
         self.onCopy = onCopy
@@ -246,6 +249,10 @@ struct ClipboardEntry: View {
     @ViewBuilder
     func pinButton() -> some View {
         Button(action: {
+            if !canPin && !localIsPinned {
+                NotificationCenter.default.post(name: .showUpgradeAlertRequested, object: nil)
+                return
+            }
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 localIsPinned.toggle()
             }
@@ -259,7 +266,7 @@ struct ClipboardEntry: View {
                     .padding(.leading, -6)
                 Image(systemName: localIsPinned ? "pin.slash.fill" : "pin")
                     .font(.subheadline)
-                    .foregroundStyle(localIsPinned ? .white : .primary)
+                    .foregroundStyle(localIsPinned ? .white : (canPin ? .primary : .secondary))
                     .padding(.trailing, 6)
             }
             .padding(1)
@@ -267,12 +274,12 @@ struct ClipboardEntry: View {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(localIsPinned
                           ? AnyShapeStyle(Color.accentColor.opacity(0.9))
-                          : AnyShapeStyle(.secondary.opacity(0.3)))
+                          : AnyShapeStyle(.secondary.opacity(canPin ? 0.3 : 0.15)))
             )
         }
         .buttonStyle(.plain)
         .keyboardShortcut("p", modifiers: .command)
-        .help(localIsPinned ? "Unpin" : "Pin")
+        .help(localIsPinned ? "Unpin" : (canPin ? "Pin" : "Upgrade to pin more"))
     }
     
     @ViewBuilder

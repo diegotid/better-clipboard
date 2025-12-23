@@ -17,6 +17,8 @@ extension Notification.Name {
     static let searchEntriesRequested = Notification.Name("searchEntriesRequested")
     static let translationRequested = Notification.Name("translationRequested")
     static let restorePurchasesRequested = Notification.Name("restorePurchasesRequested")
+    static let openSettingsRequested = Notification.Name("openSettingsRequested")
+    static let showUpgradeAlertRequested = Notification.Name("showUpgradeAlertRequested")
 }
 
 final class WritingToolsController: ObservableObject {

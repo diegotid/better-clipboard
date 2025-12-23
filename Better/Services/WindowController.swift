@@ -32,6 +32,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var windows: [(window: NSWindow, host: NSHostingController<AnyView>)] = []
     private var entries: [CopiedContent] = []
     private var baseHistory: [CopiedContent] = []
+    private var isUnlocked: Bool = false
+    private let defaultMaxPinnedEntries = 3
     private var entryIndexLookup: [UUID: Int] = [:]
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
@@ -143,6 +145,9 @@ final class WindowController: NSObject, NSMenuItemValidation {
         super.init()
         configureStatusBarItem()
         registerHotKey()
+        Task {
+            await checkLifetimeUnlocked()
+        }
         statusOverlayContext.setSearchTextIfNeeded(searchText)
         statusOverlaySearchImmediateObserver = statusOverlayContext.$searchText
             .dropFirst()
@@ -186,6 +191,26 @@ final class WindowController: NSObject, NSMenuItemValidation {
                 self.refreshEntriesAfterPinToggle()
             }
         }
+        _ = NotificationCenter.default.addObserver(
+            forName: .openSettingsRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.showSettingsPopover()
+            }
+        }
+        _ = NotificationCenter.default.addObserver(
+            forName: .showUpgradeAlertRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.showUpgradeAlert()
+            }
+        }
         resignActiveObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: nil,
@@ -225,6 +250,21 @@ final class WindowController: NSObject, NSMenuItemValidation {
         }
         hasPresentedInitialWindows = true
         showWindows(presentEmptyAlert: false, captureLastApp: false)
+    }
+    
+    func checkLifetimeUnlocked() async {
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let transaction) = result,
+               transaction.productID == PurchaseManager.unlockProductID {
+                await MainActor.run {
+                    isUnlocked = true
+                }
+                return
+            }
+        }
+        await MainActor.run {
+            isUnlocked = false
+        }
     }
 }
 
@@ -424,6 +464,7 @@ private extension WindowController {
         alert.informativeText = "This will permanently remove all clipboard items stored by Better. This action cannot be undone."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Clear History")
+        alert.buttons.first?.hasDestructiveAction = true
         alert.addButton(withTitle: "Cancel")
         let processConfirmation: () -> Void = { [weak self] in
             _ = self
@@ -552,11 +593,25 @@ private extension WindowController {
             preferredEdge: .maxY
         )
         NSApp.activate(ignoringOtherApps: true)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
     func hideSettingsPopover() {
         settingsPopover?.performClose(nil)
         settingsPopover = nil
+    }
+    
+    func showUpgradeAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Upgrade to Pin More"
+        alert.informativeText = "You've reached the limit of 3 pinned items. Upgrade to Pro to unlock unlimited pinned entries."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Cancel")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            showSettingsPopover()
+        }
     }
 
     @objc
@@ -654,10 +709,13 @@ private extension WindowController {
                 if index < entries.count {
                     let updatedEntry = entries[index]
                     let isFrontMost = index == 0
+                    let pinnedCount = clipboard.history.filter { $0.isPinned }.count
+                    let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries || updatedEntry.isPinned
                     let newView = AnyView(
                         ClipboardEntry(
                             entry: updatedEntry,
                             isFrontMost: isFrontMost,
+                            canPin: canPin,
                             onChange: { [weak self] id, text, language in
                                 self?.handleEntryUpdate(id: id, text: text, language: language)
                             },
@@ -674,10 +732,13 @@ private extension WindowController {
     }
 
     func createWindow(for entry: CopiedContent) -> (NSWindow, NSHostingController<AnyView>) {
+        let pinnedCount = clipboard.history.filter { $0.isPinned }.count
+        let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned
         let entryView = AnyView(
             ClipboardEntry(
                 entry: entry,
                 isFrontMost: false,
+                canPin: canPin,
                 onChange: { [weak self] id, text, language in
                     self?.handleEntryUpdate(id: id, text: text, language: language)
                 },
@@ -810,9 +871,12 @@ private extension WindowController {
             let frame = NSRect(origin: origin, size: windowSize)
             window.contentMinSize = windowSize
             window.contentMaxSize = windowSize
+let pinnedCount = clipboard.history.filter { $0.isPinned }.count
+            let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned
             host.rootView = AnyView(
                 ClipboardEntry(entry: entry,
                                isFrontMost: isFront,
+                               canPin: canPin,
                                onChange: { [weak self] id, text, language in
                                    self?.handleEntryUpdate(id: id,
                                                            text: text,
@@ -1138,6 +1202,17 @@ private extension WindowController {
     func toggleFrontMostPinned() {
         guard let frontEntry = entries.first else {
             return
+        }
+        guard let currentEntry = clipboard.history.first(where: { $0.id == frontEntry.id }) else {
+            return
+        }
+        if !currentEntry.isPinned {
+            let pinnedCount = clipboard.history.filter { $0.isPinned }.count
+            let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries
+            if !canPin {
+                NotificationCenter.default.post(name: .showUpgradeAlertRequested, object: nil)
+                return
+            }
         }
         NotificationCenter.default.post(name: .toggleEntryPinnedRequested,
                                         object: frontEntry.id)

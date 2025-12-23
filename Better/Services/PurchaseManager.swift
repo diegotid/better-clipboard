@@ -47,7 +47,7 @@ import SwiftUI
         var unlocked = false
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
-               transaction.productID == PurchaseManager.unlockProductID {
+               transaction.productID == Self.unlockProductID {
                 unlocked = true
                 break
             }
