@@ -18,20 +18,6 @@ struct CodeDetector {
         guard trimmed.count >= 3 else {
             return nil
         }
-        let commentPatterns: [(pattern: String, language: ProgrammingLanguage)] = [
-            ("//", ProgrammingLanguage(name: "C-style", color: Color(hex: "7F8C8D"))),
-            ("#", ProgrammingLanguage(name: "Script", color: Color(hex: "7ED321"))),
-            ("/*", ProgrammingLanguage(name: "C-style", color: Color(hex: "7F8C8D"))),
-            ("<!--", ProgrammingLanguage(name: "HTML", color: Color(hex: "FF6347"))),
-            ("--", ProgrammingLanguage(name: "SQL", color: Color(hex: "FF6B9D"))),
-            ("'''", ProgrammingLanguage(name: "Python", color: Color(hex: "5BA3D0"))),
-            ("\"\"\"", ProgrammingLanguage(name: "Python", color: Color(hex: "5BA3D0")))
-        ]
-        for (pattern, language) in commentPatterns {
-            if trimmed.hasPrefix(pattern) {
-                return language
-            }
-        }
         if let jsonLanguage = detectJSON(in: trimmed) {
             return jsonLanguage
         }
@@ -43,10 +29,10 @@ struct CodeDetector {
                 let hasQuotedKeys = trimmed.range(of: #""[^"]+"\s*:"#, options: .regularExpression) != nil
                 let hasKeyValuePairs = trimmed.contains(":") && trimmed.contains("\"")
                 if hasQuotedKeys || hasKeyValuePairs {
-                    return ProgrammingLanguage(name: "JSON", color: Color(hex: "95A5A6"))
+                    return ProgrammingLanguage(name: "JSON")
                 }
             }
-            return ProgrammingLanguage(name: "Code", color: Color(hex: "7F8C8D"))
+            return ProgrammingLanguage(name: "Code")
         }
         let lines = trimmed.components(separatedBy: .newlines)
         let nonCommentLines = lines.filter { line in
@@ -59,6 +45,11 @@ struct CodeDetector {
         guard totalWords > 0 else {
             return nil
         }
+        for option in codePatterns {
+            if textToAnalyze.range(of: option.pattern, options: .regularExpression) != nil {
+                return option.language
+            }
+        }
         var codeWordCount = 0
         for option in codePatterns {
             if let regex = try? NSRegularExpression(pattern: option.pattern, options: []) {
@@ -67,20 +58,18 @@ struct CodeDetector {
             }
         }
         let codeRatio = Double(codeWordCount) / Double(totalWords)
-        if codeRatio < Self.codeThreshold {
-            if hasCodeIndicators(textToAnalyze) {
-                return ProgrammingLanguage(name: "Code", color: .blue)
-            }
-            return nil
-        }
-        for option in codePatterns {
-            if textToAnalyze.range(of: option.pattern, options: .regularExpression) != nil {
-                return option.language
-            }
+        if codeRatio >= Self.codeThreshold {
+            return ProgrammingLanguage(name: "Code")
         }
         if hasCodeIndicators(textToAnalyze) {
-            return ProgrammingLanguage(name: "Code", color: .blue)
+            return ProgrammingLanguage(name: "Code")
         }
+        for commentPattern in commentPatterns {
+            if trimmed.hasPrefix(commentPattern.prefix) {
+                return commentPattern.language
+            }
+        }
+        
         return nil
     }
     
@@ -109,7 +98,7 @@ private extension CodeDetector {
         guard text.hasPrefix("{") || text.hasPrefix("[") else { return nil }
         guard let data = text.data(using: .utf8) else { return nil }
         if let _ = try? JSONSerialization.jsonObject(with: data, options: []) {
-            return ProgrammingLanguage(name: "JSON", color: Color(hex: "95A5A6"))
+            return ProgrammingLanguage(name: "JSON")
         }
         return nil
     }
