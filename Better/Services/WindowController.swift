@@ -871,22 +871,8 @@ private extension WindowController {
             let frame = NSRect(origin: origin, size: windowSize)
             window.contentMinSize = windowSize
             window.contentMaxSize = windowSize
-let pinnedCount = clipboard.history.filter { $0.isPinned }.count
+            let pinnedCount = clipboard.history.filter { $0.isPinned }.count
             let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned
-            host.rootView = AnyView(
-                ClipboardEntry(entry: entry,
-                               isFrontMost: isFront,
-                               canPin: canPin,
-                               onChange: { [weak self] id, text, language in
-                                   self?.handleEntryUpdate(id: id,
-                                                           text: text,
-                                                           language: language)
-                               },
-                               onPaste: pasteFrontMost,
-                               onCopy: handleCopyEntry,
-                               languageContext: languageContext)
-                .environment(\.translator, translator)
-            )
             if let tintView = window.contentView?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("tint") }) {
                 tintView.layer?.backgroundColor = NSColor(calibratedWhite: 1.0, alpha: isFront ? 0.08 : 0.22).cgColor
             }
