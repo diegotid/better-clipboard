@@ -129,7 +129,9 @@ private extension ClipboardController {
             let entryID = entry.id
             let entryOriginal = entry.original
             Task.detached { [entryID, entryOriginal] in
-                let codeLang = await MainActor.run { CodeDetector.detectCode(in: entryOriginal) }
+                let codeLang = await MainActor.run {
+                    CodeDetector.detectCode(in: entryOriginal)
+                }
                 await MainActor.run {
                     guard let index = self.history.firstIndex(where: { $0.id == entryID }) else { return }
                     var updatedEntry = self.history[index]

@@ -55,6 +55,7 @@
 				F1E0BE132EB6DCAE00AB8CB6 /* Sources */,
 				F1E0BE142EB6DCAE00AB8CB6 /* Frameworks */,
 				F1E0BE152EB6DCAE00AB8CB6 /* Resources */,
+				F156A1C02F00522F00A15512 /* Run Script */,
 			);
 			buildRules = (
 			);
@@ -113,6 +114,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F156A1C02F00522F00A15512 /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Tools/langdetect",
+			);
+			name = "Run Script";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/langdetect",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\nSRC=\"${PROJECT_DIR}/Tools/langdetect\"\nDEST_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nDEST=\"${DEST_DIR}/langdetect\"\n\nmkdir -p \"$DEST_DIR\"\n/bin/cp -f \"$SRC\" \"$DEST\"\n/bin/chmod 755 \"$DEST\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		F1E0BE132EB6DCAE00AB8CB6 /* Sources */ = {
