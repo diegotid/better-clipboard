@@ -33,17 +33,30 @@ struct CodeDetector {
         let structuralChars = trimmed.filter { "{}[]:;,()<>=".contains($0) }.count
         let textLength = trimmed.count
         let structuralDensity = Double(structuralChars) / Double(max(1, textLength))
+        let hasKeywordSignal = trimmed.range(
+            of: #"\b(import|from|class|struct|enum|func|def|let|var|const|public|private|static|return)\b"#,
+            options: .regularExpression
+        ) != nil
         let looksLikeCode = hasCodeIndicators(trimmed)
             || structuralDensity > structuralDensityThreshold
-            || trimmed.range(of: #"\b(import|from|class|struct|enum|func|def|let|var|const|public|private|static|return)\b"#, options: .regularExpression) != nil
+            || hasKeywordSignal
+        let strongCodeEvidence = hasCodeIndicators(trimmed)
+            || structuralDensity > highStructuralDensityThreshold
+            || (hasKeywordSignal && hasNewline)
+            || (hasNewline && structuralChars >= minStructuralChars && wordCount <= maxWordCount)
         guard looksLikeCode else {
             return nil
         }
         guard textLength >= minTextLength, (hasNewline || structuralChars >= minStructuralChars || wordCount <= maxWordCount) else {
             return nil
         }
-        if let langName = detectLanguageWithEnry(snippet: trimmed) {
+        switch detectLanguageWithEnry(snippet: trimmed) {
+        case .language(let langName):
             return ProgrammingLanguage(name: langName)
+        case .ambiguousLanguage:
+            return strongCodeEvidence ? ProgrammingLanguage(name: "Code") : nil
+        case .noSignal:
+            break
         }
         if structuralDensity > highStructuralDensityThreshold {
             if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
@@ -79,11 +92,17 @@ struct CodeDetector {
 }
 
 private extension CodeDetector {
-    static func detectLanguageWithEnry(snippet: String) -> String? {
+    enum EnryDetectionResult {
+        case language(String)
+        case ambiguousLanguage
+        case noSignal
+    }
+
+    static func detectLanguageWithEnry(snippet: String) -> EnryDetectionResult {
         let helperURL = Bundle.main.url(forResource: "langdetect", withExtension: nil)
             ?? Bundle.main.url(forResource: "enry", withExtension: nil)
         guard let helperURL else {
-            return nil
+            return .noSignal
         }
         do {
             let process = Process()
@@ -103,15 +122,15 @@ private extension CodeDetector {
             process.waitUntilExit()
             let terminationStatus = process.terminationStatus
             guard terminationStatus == 0 else {
-                return nil
+                return .noSignal
             }
             let outData = stdout.fileHandleForReading.readDataToEndOfFile()
             guard var out = String(data: outData, encoding: .utf8) else {
-                return nil
+                return .noSignal
             }
             out = out.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !out.isEmpty else {
-                return nil
+                return .noSignal
             }
             struct Candidate { let language: String; let percent: Double }
             struct HelperPayload: Decodable {
@@ -198,21 +217,20 @@ private extension CodeDetector {
             let ignored = Set(["Text", "Markdown", "Rich Text Format", "reStructuredText", "Org", "TeX", "LaTeX"])
             candidates = candidates.filter { !ignored.contains($0.language) }
             guard let best = candidates.first else {
-                return nil
+                return .noSignal
             }
             if let mapped = candidates.first(where: { ProgrammingLanguage.colorMapContains($0.language) }) {
-                return mapped.language
+                return .language(mapped.language)
             }
             let minPercent = 60.0
-            guard best.percent >= minPercent else {
-                return nil
+            if best.percent >= minPercent {
+                return .language(best.language)
             }
-            return best.language
+            return .ambiguousLanguage
         } catch {
-            return nil
+            return .noSignal
         }
     }
-
     
     static func detectJSON(in text: String) -> ProgrammingLanguage? {
         guard text.hasPrefix("{") || text.hasPrefix("[") else { return nil }
