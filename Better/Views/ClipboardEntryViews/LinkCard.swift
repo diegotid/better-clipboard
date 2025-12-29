@@ -28,11 +28,11 @@ struct LinkCard: View {
                         Color.secondary.opacity(0.12)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 220)
+                .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 230)
                 .clipped()
             } else {
                 Color.secondary.opacity(0.08)
-                    .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 220)
+                    .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 230)
             }
             VStack {
                 Spacer()

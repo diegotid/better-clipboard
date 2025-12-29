@@ -98,6 +98,7 @@ struct ClipboardEntry: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 pinButton()
+                    .padding(.trailing, 6)
                 Text(localIsPinned ? "Pinned" : "Copied \(formattedDate)")
                 Spacer()
                 if isFrontMost {
@@ -120,6 +121,7 @@ struct ClipboardEntry: View {
                         }
                     } else if isLink, let url = URL(string: entry.original) {
                         LinkCard(url: url, metatags: entry.linkMetatags)
+                            .frame(maxHeight: .infinity)
                     } else {
                         WritingToolsEditor(
                             text: $editedText,
@@ -134,10 +136,12 @@ struct ClipboardEntry: View {
                 }
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(.quaternary)
+                        .strokeBorder(localIsPinned
+                                      ? Color.accentColor.opacity(0.3)
+                                      : Color(NSColor.quaternaryLabelColor))
                 )
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .padding(.horizontal, -6)
+                .padding(.horizontal, -2)
                 .zIndex(0)
                 if isImage {
                     GeometryReader { proxy in
@@ -172,20 +176,21 @@ struct ClipboardEntry: View {
                             }
                         }
                     }
-                    .padding(.horizontal, -6)
+                    .padding(.horizontal, -2)
                 }
             }
             if !isCode && editedText != entry.original {
                 Text("Original text")
                 Text(entry.original)
                     .foregroundStyle(.secondary)
+                Spacer()
             }
             if isFrontMost {
-                Spacer()
                 buttonBar()
+                    .padding(.top, 8)
             }
         }
-        .padding(20)
+        .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             writingToolsController.onUnavailable = {
@@ -263,18 +268,22 @@ struct ClipboardEntry: View {
                 keyImage("command")
                     .scaleEffect(0.85)
                 keyCharacter("P")
-                    .padding(.leading, -6)
+                    .padding(.leading, -8)
                 Image(systemName: localIsPinned ? "pin.slash.fill" : "pin")
                     .font(.subheadline)
                     .foregroundStyle(localIsPinned ? .white : (canPin ? .primary : .secondary))
-                    .padding(.trailing, 6)
+                    .padding(.trailing, 7)
             }
             .padding(1)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(localIsPinned
-                          ? AnyShapeStyle(Color.accentColor.opacity(0.9))
-                          : AnyShapeStyle(.secondary.opacity(canPin ? 0.3 : 0.15)))
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(localIsPinned
+                                  ? AnyShapeStyle(Color.accentColor.opacity(0.3))
+                                  : AnyShapeStyle(.secondary.opacity(canPin ? 0.2 : 0.1)))
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -299,32 +308,29 @@ struct ClipboardEntry: View {
                     .padding(.horizontal, 3)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.secondary.opacity(0.3))
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(Color.secondary.opacity(0.2))
+                            )
                     )
                 }
                 .buttonStyle(.plain)
             } else if isEmoji || isLink {
                 EmptyView()
             } else if isCode {
-                Button(action: {}) {
-                    HStack {
-                        Image(systemName: "curlybraces")
-                            .bold()
-                            .monospaced()
-                            .foregroundStyle(.white)
-                            .padding(.leading, 4)
-                        Text(entry.codeLanguage?.name ?? "Code")
-                            .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .white)
-                            .padding(.trailing, 8)
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.secondary.opacity(0.3))
-                    )
+                HStack {
+                    Image(systemName: "ellipsis.curlybraces")
+                        .bold()
+                        .monospaced()
+                        .foregroundStyle(.white)
+                        .padding(.leading, 4)
+                    Text(entry.codeLanguage?.name ?? "Code")
+                        .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .white)
+                        .padding(.trailing, 8)
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 4)
+                .padding(.trailing, -3)
             } else if isTranslationSupported == false {
                 EmptyView()
             } else if languageContext.languages.isEmpty || !isTranslationAvailable {
@@ -343,7 +349,11 @@ struct ClipboardEntry: View {
                     }
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.3))
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.2))
+                            )
                     )
                     .scaleEffect(0.9)
                 }
@@ -410,7 +420,11 @@ struct ClipboardEntry: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(.secondary.opacity(0.3))
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.secondary.opacity(0.2))
+                )
             )
             .scaleEffect(0.9)
         }
@@ -434,13 +448,17 @@ struct ClipboardEntry: View {
                     Image(systemName: "trash")
                         .font(.subheadline)
                         .foregroundStyle(.primary)
-                        .padding(.trailing, 3)
+                        .padding(.trailing, 6)
                         .transition(.scale.combined(with: .opacity))
                 }
                 .padding(3)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(.secondary.opacity(0.6))
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(.secondary.opacity(0.4))
+                        )
                 )
             }
             .keyboardShortcut(.delete, modifiers: .command)
@@ -463,7 +481,11 @@ struct ClipboardEntry: View {
                     .padding(3)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.6))
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.4))
+                            )
                     )
                 }
                 .keyboardShortcut("u", modifiers: .command)
@@ -482,12 +504,16 @@ struct ClipboardEntry: View {
                         Image(systemName: "sparkles")
                             .font(.subheadline)
                             .foregroundStyle(.primary)
-                            .padding(.trailing, 3)
+                            .padding(.trailing, 6)
                     }
                     .padding(3)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.6))
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.4))
+                            )
                     )
                 }
                 .keyboardShortcut("r", modifiers: .command)
@@ -510,7 +536,11 @@ struct ClipboardEntry: View {
                     .padding(3)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.6))
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.4))
+                            )
                     )
                 }
                 .keyboardShortcut("w", modifiers: .command)
@@ -535,20 +565,24 @@ struct ClipboardEntry: View {
                         if showCopyConfirmation {
                             Image(systemName: "checkmark")
                                 .font(.subheadline)
-                                .padding(.trailing, 5)
+                                .padding(.trailing, 8)
                                 .transition(.scale.combined(with: .opacity))
                         } else {
                             Image(systemName: "document.on.document")
                                 .font(.subheadline)
                                 .foregroundStyle(.primary)
-                                .padding(.trailing, 3)
+                                .padding(.trailing, 6)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
                     .padding(3)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.6))
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.4))
+                            )
                     )
                 }
                 .keyboardShortcut("c", modifiers: .command)
@@ -577,20 +611,24 @@ struct ClipboardEntry: View {
                         if showCopyConfirmation {
                             Image(systemName: "checkmark")
                                 .font(.subheadline)
-                                .padding(.trailing, 5)
+                                .padding(.trailing, 8)
                                 .transition(.scale.combined(with: .opacity))
                         } else {
                             Image(systemName: "photo.on.rectangle")
                                 .font(.subheadline)
                                 .foregroundStyle(.primary)
-                                .padding(.trailing, 3)
+                                .padding(.trailing, 6)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
                     .padding(3)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.6))
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(.secondary.opacity(0.4))
+                            )
                     )
                 }
                 .keyboardShortcut("c", modifiers: .command)
@@ -606,7 +644,11 @@ struct ClipboardEntry: View {
                 .padding(3)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(.secondary.opacity(0.6))
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(.secondary.opacity(0.4))
+                        )
                 )
             }
             .keyboardShortcut(.return)
