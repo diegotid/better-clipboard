@@ -49,7 +49,6 @@ struct WritingToolsEditor: NSViewRepresentable {
         } else {
             nsView.setIsEmoji(false)
             textView.textContainerInset = NSSize(width: 6, height: 8)
-            
             if isCode {
                 configureCodeDisplay(textView: textView, scrollView: nsView, context: context)
             } else {
@@ -87,7 +86,7 @@ private extension WritingToolsEditor {
         scroll.wantsLayer = true
         scroll.layer?.cornerRadius = cornerRadius
         scroll.layer?.masksToBounds = true
-        scroll.autohidesScrollers = !isCode
+        scroll.autohidesScrollers = true
     }
     
     func createTextView(context: Context) -> ShortcutAwareText {
@@ -181,7 +180,7 @@ private extension WritingToolsEditor {
         textView.autoresizingMask = []
         scrollView.hasHorizontalScroller = false
         scrollView.hasVerticalScroller = true
-        scrollView.autohidesScrollers = false
+        scrollView.autohidesScrollers = true
         let originalText = textView.string
         CodeDetector.configureCodeStyling(for: textView, language: codeLanguage)
         if textView.string != originalText {

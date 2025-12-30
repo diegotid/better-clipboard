@@ -265,26 +265,13 @@ struct ClipboardEntry: View {
                                             object: entry.id)
         }) {
             HStack {
-                keyImage("command")
-                    .scaleEffect(0.85)
-                keyCharacter("P")
-                    .padding(.leading, -8)
+                shortcut(mods: ["command"], key: "P")
                 Image(systemName: localIsPinned ? "pin.slash.fill" : "pin")
                     .font(.subheadline)
                     .foregroundStyle(localIsPinned ? .white : (canPin ? .primary : .secondary))
-                    .padding(.trailing, 7)
+                    .padding(.trailing, 8)
             }
-            .padding(1)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(localIsPinned
-                                  ? AnyShapeStyle(Color.accentColor.opacity(0.3))
-                                  : AnyShapeStyle(.secondary.opacity(canPin ? 0.2 : 0.1)))
-                    )
-            )
+            .buttonPillStyle(localIsPinned: localIsPinned, canPin: canPin)
         }
         .buttonStyle(.plain)
         .keyboardShortcut("p", modifiers: .command)
@@ -295,27 +282,15 @@ struct ClipboardEntry: View {
     func languageBar() -> some View {
         HStack(spacing: 2) {
             if isImage {
-                Button(action: {}) {
-                    HStack {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.white)
-                            .padding(.leading, 4)
-                        Text("Image")
-                            .foregroundStyle(.blue)
-                            .padding(.trailing, 8)
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(Color.secondary.opacity(0.2))
-                            )
-                    )
+                HStack {
+                    Image(systemName: "photo")
+                        .foregroundStyle(.white)
+                        .padding(.leading, 4)
+                    Text("Image")
+                        .foregroundStyle(.blue)
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 4)
+                .padding(.trailing, 5)
             } else if isEmoji || isLink {
                 EmptyView()
             } else if isCode {
@@ -327,35 +302,23 @@ struct ClipboardEntry: View {
                         .padding(.leading, 4)
                     Text(entry.codeLanguage?.name ?? "Code")
                         .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .primary)
-                        .padding(.trailing, 8)
                 }
                 .padding(.vertical, 4)
-                .padding(.trailing, -3)
+                .padding(.trailing, 5)
             } else if isTranslationSupported == false {
                 EmptyView()
             } else if languageContext.languages.isEmpty || !isTranslationAvailable {
                 Button(action: {
                     showingTranslationHelp = true
                 }) {
-                    HStack {
-                        Image(systemName: "translate")
-                            .font(.system(size: 15))
-                            .padding(.leading, 9)
-                            .padding(.bottom, 4)
-                            .padding(.top, 6)
+                    HStack(spacing: 6) {
                         Image(systemName: "info.circle")
-                            .font(.system(size: 15))
-                            .padding(.trailing, 9)
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "translate")
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.2))
-                            )
-                    )
-                    .scaleEffect(0.9)
+                    .padding(.vertical, 2.5)
+                    .padding(.horizontal, 6)
+                    .buttonPillStyle()
                 }
                 .buttonStyle(.plain)
                 .help("Add translation languages")
@@ -398,33 +361,35 @@ struct ClipboardEntry: View {
                         Image(systemName: "checkmark")
                             .bold()
                             .font(.system(size: 15))
-                            .padding(.leading, 4)
-                            .padding(.trailing, 1)
+                            .padding(.leading, 6)
+                            .padding(.trailing, 2)
                     } else if $translatingTo.wrappedValue == language {
                         ProgressView()
                             .frame(width: 16, height: 16)
                             .scaleEffect(0.6)
                             .padding(.horizontal, 4)
+                            .padding(.leading, 4)
                     } else {
                         Image(systemName: "command")
+                            .padding(.leading, 2)
                         Text("\(index + 1)")
                             .padding(.leading, -5)
                     }
                 }
-                .padding(.leading, 6)
-                .padding(.vertical, 5)
-                .padding(.trailing, 0)
-                LanguageFlag(locale: locale, diameter: 24)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .padding(.vertical, 3)
+                .padding(.horizontal, 8)
+                LanguageFlag(locale: locale, diameter: 31.5)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding(0)
+                    .padding(.leading, -6)
             }
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(.ultraThinMaterial)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.secondary.opacity(0.2))
-                )
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.secondary.opacity(0.2))
+                    )
             )
             .scaleEffect(0.9)
         }
@@ -442,24 +407,14 @@ struct ClipboardEntry: View {
                                                 object: entry.id)
             }) {
                 HStack {
-                    keyImage("command")
-                    keyImage("delete.left")
-                        .padding(.leading, -6)
+                    shortcut(mods: ["command", "delete.left"])
                     Image(systemName: "trash")
                         .font(.subheadline)
                         .foregroundStyle(.primary)
-                        .padding(.trailing, 6)
+                        .padding(.trailing, 8)
                         .transition(.scale.combined(with: .opacity))
                 }
-                .padding(3)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(.secondary.opacity(0.4))
-                        )
-                )
+                .buttonPillStyle()
             }
             .keyboardShortcut(.delete, modifiers: .command)
             .help("Delete this copy")
@@ -471,22 +426,12 @@ struct ClipboardEntry: View {
                     translatedTo = nil
                 }) {
                     HStack {
-                        keyImage("command")
-                        keyCharacter("U")
-                            .padding(.leading, -6)
+                        shortcut(mods: ["command"], key: "U")
                         Text("Back to original")
                             .font(.body)
                             .padding(.trailing, 8)
                     }
-                    .padding(3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.4))
-                            )
-                    )
+                    .buttonPillStyle()
                 }
                 .keyboardShortcut("u", modifiers: .command)
                 .help("Back to the original copy")
@@ -496,25 +441,15 @@ struct ClipboardEntry: View {
                     writingToolsController.showWritingToolsPanel()
                 }) {
                     HStack {
-                        keyImage("command")
-                        keyCharacter("R")
-                            .padding(.leading, -6)
+                        shortcut(mods: ["command"], key: "R")
                         Text("Rewrite")
                             .font(.body)
                         Image(systemName: "sparkles")
                             .font(.subheadline)
                             .foregroundStyle(.primary)
-                            .padding(.trailing, 6)
+                            .padding(.trailing, 8)
                     }
-                    .padding(3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.4))
-                            )
-                    )
+                    .buttonPillStyle()
                 }
                 .keyboardShortcut("r", modifiers: .command)
                 .help("Rewrite this copy")
@@ -526,22 +461,12 @@ struct ClipboardEntry: View {
                     }
                 }) {
                     HStack {
-                        keyImage("command")
-                        keyCharacter("W")
-                            .padding(.leading, -6)
+                        shortcut(mods: ["command"], key: "W")
                         Text("Follow link")
                             .font(.body)
                             .padding(.trailing, 8)
                     }
-                    .padding(3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.4))
-                            )
-                    )
+                    .buttonPillStyle()
                 }
                 .keyboardShortcut("w", modifiers: .command)
                 .help("Follow this link")
@@ -559,9 +484,7 @@ struct ClipboardEntry: View {
                     }
                 }) {
                     HStack {
-                        keyImage("command")
-                        keyCharacter("C")
-                            .padding(.leading, -6)
+                        shortcut(mods: ["command"], key: "C")
                         if showCopyConfirmation {
                             Image(systemName: "checkmark")
                                 .font(.subheadline)
@@ -571,19 +494,11 @@ struct ClipboardEntry: View {
                             Image(systemName: "document.on.document")
                                 .font(.subheadline)
                                 .foregroundStyle(.primary)
-                                .padding(.trailing, 6)
+                                .padding(.trailing, 8)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
-                    .padding(3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.4))
-                            )
-                    )
+                    .buttonPillStyle()
                 }
                 .keyboardShortcut("c", modifiers: .command)
                 .help("Copy rewritten text to the clipboard")
@@ -605,9 +520,7 @@ struct ClipboardEntry: View {
                     }
                 }) {
                     HStack {
-                        keyImage("command")
-                        keyCharacter("C")
-                            .padding(.leading, -6)
+                        shortcut(mods: ["command"], key: "C")
                         if showCopyConfirmation {
                             Image(systemName: "checkmark")
                                 .font(.subheadline)
@@ -617,39 +530,23 @@ struct ClipboardEntry: View {
                             Image(systemName: "photo.on.rectangle")
                                 .font(.subheadline)
                                 .foregroundStyle(.primary)
-                                .padding(.trailing, 6)
+                                .padding(.trailing, 8)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
-                    .padding(3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.secondary.opacity(0.4))
-                            )
-                    )
+                    .buttonPillStyle()
                 }
                 .keyboardShortcut("c", modifiers: .command)
                 .help("Copy image to the clipboard")
             }
             Button(action: onPaste) {
                 HStack {
-                    keyImage("return")
+                    shortcut(mods: ["return"])
                     Text("Paste")
                         .font(.body)
                         .padding(.trailing, 8)
                 }
-                .padding(3)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(.secondary.opacity(0.4))
-                        )
-                )
+                .buttonPillStyle()
             }
             .keyboardShortcut(.return)
             .help("Paste this copy")
@@ -659,28 +556,26 @@ struct ClipboardEntry: View {
     }
     
     @ViewBuilder
-    func keyImage(_ systemName: String) -> some View {
-        HStack {
-            Image(systemName: systemName)
+    func shortcut(mods: [String], key: String? = nil) -> some View {
+        HStack(spacing: 3) {
+            ForEach(mods, id: \.self) { mod in
+                Image(systemName: mod)
+                    .resizable()
+                    .frame(width: 10, height: 10)
+            }
+            if let key {
+                Text(key)
+                    .font(.system(size: 12))
+            }
         }
-        .padding(4)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .frame(height: 22)
+        .foregroundStyle(.secondary)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .fill(.ultraThickMaterial)
         )
-    }
-    
-    @ViewBuilder
-    func keyCharacter(_ character: String) -> some View {
-        Text(character)
-            .font(.callout)
-            .padding(.top, 1)
-            .padding(.bottom, 2)
-            .padding(.horizontal, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(.ultraThickMaterial)
-            )
     }
 }
 
@@ -757,6 +652,36 @@ private extension ClipboardEntry {
                 cont.resume(returning: image)
             }
         }
+    }
+}
+
+private struct ButtonPillStyle: ViewModifier {
+    let localIsPinned: Bool
+    let canPin: Bool
+
+    func body(content: Content) -> some View {
+        let overlayStyle: AnyShapeStyle = {
+            if localIsPinned {
+                return AnyShapeStyle(Color.accentColor.opacity(0.2))
+            }
+            return AnyShapeStyle(Color.secondary.opacity(canPin ? 0.2 : 0.1))
+        }()
+        content
+            .padding(3)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(overlayStyle)
+                    )
+            )
+    }
+}
+
+private extension View {
+    func buttonPillStyle(localIsPinned: Bool = false, canPin: Bool = true) -> some View {
+        modifier(ButtonPillStyle(localIsPinned: localIsPinned, canPin: canPin))
     }
 }
 
