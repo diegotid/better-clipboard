@@ -105,17 +105,6 @@ final class WindowController: NSObject, NSMenuItemValidation {
         return item
     }()
     
-    private lazy var restorePurchasesItem: NSMenuItem = {
-        let item = NSMenuItem(
-            title: "Restore Purchases",
-            action: #selector(restorePurchases(_:)),
-            keyEquivalent: ""
-        )
-        item.target = self
-        item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
-        return item
-    }()
-    
     private lazy var aboutMenuItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "About Better Clipboard",
@@ -446,7 +435,6 @@ private extension WindowController {
         menu.addItem(clearItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(settingsItem)
-        menu.addItem(restorePurchasesItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(quitItem)
         statusBarItem.menu = menu
