@@ -133,7 +133,9 @@ private extension ClipboardController {
                     CodeDetector.detectCode(in: entryOriginal)
                 }
                 await MainActor.run {
-                    guard let index = self.history.firstIndex(where: { $0.id == entryID }) else { return }
+                    guard let index = self.history.firstIndex(where: { $0.id == entryID }) else {
+                        return
+                    }
                     var updatedEntry = self.history[index]
                     updatedEntry.setCodeLanguage(codeLang)
                     self.history[index] = updatedEntry

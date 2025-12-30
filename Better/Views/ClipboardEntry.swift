@@ -323,10 +323,10 @@ struct ClipboardEntry: View {
                     Image(systemName: "ellipsis.curlybraces")
                         .bold()
                         .monospaced()
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                     Text(entry.codeLanguage?.name ?? "Code")
-                        .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .white)
+                        .foregroundStyle(entry.codeLanguage?.color?.adaptiveForAppearance() ?? .primary)
                         .padding(.trailing, 8)
                 }
                 .padding(.vertical, 4)

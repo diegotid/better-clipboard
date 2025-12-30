@@ -11,9 +11,14 @@ struct StatusOverlayBar: View {
     var width: Int
     var onWrapToFirst: () -> Void = {}
     @ObservedObject var context: StatusOverlayContext
-
+    
+    @AppStorage("maxHistoryEntries")
+    private var maxHistoryEntries: Int = PurchaseManager.defaultHistoryLimit
+    
     @FocusState private var searchFieldFocused: Bool
     @State private var hasAppeared = false
+    @State private var showingFilterMenu = false
+    @State private var showingCapacityInfo = false
 
     private let borderCornerRadius: CGFloat = 22
     private let glowPeriod: TimeInterval = 2.4
@@ -86,13 +91,15 @@ struct StatusOverlayBar: View {
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .fixedSize()
+                        goProButton(accentuate: context.totalCount == maxHistoryEntries)
                     }
                 }
+                .padding(.trailing, 6)
             }
-            toggleFilterPinnedButton()
+            toggleFilterButton()
         }
         .padding(.leading, 20)
-        .padding(.trailing, 12)
+        .padding(.trailing, 9)
         .padding(.vertical, 12)
         .frame(width: CGFloat(width), alignment: .leading)
         .overlay(alignment: .center) {
@@ -168,67 +175,36 @@ struct StatusOverlayBar: View {
     }
     
     @ViewBuilder
-    private func toggleFilterPinnedButton() -> some View {
-        Button(action: {
-            context.filterPinned.toggle()
-        }) {
-            HStack {
-                HStack {
-                    Image(systemName: "command")
-                }
-                .padding(4)
-                .scaleEffect(0.95)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.ultraThickMaterial)
-                )
-                HStack {
-                    Image(systemName: "shift")
-                }
-                .padding(4)
-                .scaleEffect(0.95)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.ultraThickMaterial)
-                )
-                .padding(.leading, -6)
-                Text("P")
-                    .padding(.vertical, 3)
-                    .padding(.horizontal, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(.ultraThickMaterial)
-                    )
-                    .padding(.leading, -6)
-                HStack {
-                    Image(systemName: context.filterPinned ? "xmark" : "line.3.horizontal.decrease")
-                        .font(.system(size: context.filterPinned ? 18 : 16))
-                        .padding(.horizontal, context.filterPinned ? 2 : 1)
-                }
-                .padding(4)
-                .padding(.leading, -3)
-                HStack {
-                    Image(systemName: "pin")
-                        .foregroundStyle(context.filterPinned ? .white : .primary)
-                        .padding(.top, 1)
-                }
-                .padding(4)
-                .padding(.leading, -9)
+    private func toggleFilterButton() -> some View {
+        Menu {
+            Toggle(isOn: $context.filterPinned) {
+                Label("Pinned only", systemImage: context.filterPinned ? "pin.slash" : "pin")
+                    .padding(.leading, 18)
             }
-            .padding(3)
-            .fixedSize()
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .help(context.filterPinned ? "Switch pinned only off" : "Switch pinned only on")
+        } label: {
+            HStack {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(context.filterPinned
-                          ? AnyShapeStyle(Color.accentColor.opacity(0.9))
-                          : AnyShapeStyle(.secondary.opacity(0.3)))
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(context.filterPinned
+                                  ? Color.accentColor.opacity(0.6)
+                                  : Color.secondary.opacity(0.1))
+                    )
             )
         }
         .buttonStyle(.plain)
-        .opacity(0.85)
-        .scaleEffect(0.85)
-        .keyboardShortcut("p", modifiers: [.command, .shift])
-        .help(context.filterPinned ? "Show all entries" : "Show pinned only")
     }
     
     @ViewBuilder
@@ -236,42 +212,66 @@ struct StatusOverlayBar: View {
         Button(action: {
             onWrapToFirst()
         }) {
-            HStack {
-                HStack {
-                    Image(systemName: "command")
-                }
-                .padding(4)
-                .scaleEffect(0.95)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.ultraThickMaterial)
-                )
-                HStack {
-                    Image(systemName: "arrow.up")
-                }
-                .padding(4)
-                .scaleEffect(0.95)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.ultraThickMaterial)
-                )
-                .padding(.leading, -6)
-                Text("Top")
-                    .font(.body)
-                    .padding(.trailing, 8)
+            HStack(spacing: 0) {
+                Image(systemName: "command")
+                Image(systemName: "arrow.up")
             }
-            .padding(3)
-            .fixedSize()
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(.secondary.opacity(0.3))
-            )
+            .font(.system(size: 12, weight: .light))
+            .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
-        .opacity(0.85)
-        .scaleEffect(0.85)
         .keyboardShortcut(.upArrow, modifiers: .command)
         .help("Jump back to the newest entry")
+    }
+    
+    @ViewBuilder
+    private func goProButton(accentuate: Bool = false) -> some View {
+        Button(action: {
+            showingCapacityInfo = true
+        }) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 15, weight: accentuate ? .semibold : .light))
+                .foregroundStyle(accentuate ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help("About clipboard history size")
+        .padding(.leading, 2)
+        .popover(isPresented: $showingCapacityInfo) {
+            capacityInfoPopover()
+        }
+    }
+    
+    @ViewBuilder
+    private func capacityInfoPopover() -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "info.circle")
+                    Text("Clipboard History Size")
+                        .font(.headline)
+                }
+                Text("Oldest items are replaced when the limit is reached.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Maximum items: \(maxHistoryEntries)")
+                    .bold()
+            }
+            Button {
+                showingCapacityInfo = false
+                NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
+            } label: {
+                HStack {
+                    Image(systemName: "gear")
+                    Text("Change Limit...")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+        .padding(20)
+        .frame(width: 240)
     }
 }
 
