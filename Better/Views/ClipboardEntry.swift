@@ -25,6 +25,7 @@ struct ClipboardEntry: View {
     @State private var translatedTo: Locale.Language?
     @State private var translatingTo: Locale.Language?
     @State private var isTranslationAvailable = false
+    @State private var translationFailed = false
     @State private var showingWritingToolsHelp = false
     @State private var showingTranslationHelp = false
     @State private var showCopyConfirmation = false
@@ -307,6 +308,16 @@ struct ClipboardEntry: View {
                 .padding(.trailing, 5)
             } else if isTranslationSupported == false {
                 EmptyView()
+            } else if translationFailed {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("Translation unavailable")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .buttonPillStyle()
             } else if languageContext.languages.isEmpty || !isTranslationAvailable {
                 Button(action: {
                     showingTranslationHelp = true
@@ -633,14 +644,21 @@ private extension ClipboardEntry {
         let source = editedText
         Task {
             await translator.reconfigureIfNeeded(target: language)
+            await MainActor.run {
+                translationFailed = false
+            }
             do {
                 let translation = try await translator.translate(source)
                 await MainActor.run {
                     translatedTo = language
                     editedText = translation
+                    translationFailed = false
                 }
             } catch {
-                NSLog("Translation failed: \(error)")
+                await MainActor.run {
+                    translationFailed = true
+                    translatingTo = nil
+                }
             }
         }
     }
