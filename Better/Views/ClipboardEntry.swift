@@ -372,6 +372,8 @@ struct ClipboardEntry: View {
                         Image(systemName: "checkmark")
                             .bold()
                             .font(.system(size: 15))
+                            .foregroundStyle(.accent)
+                            .opacity(0.6)
                             .padding(.leading, 6)
                             .padding(.trailing, 2)
                     } else if $translatingTo.wrappedValue == language {
@@ -393,21 +395,22 @@ struct ClipboardEntry: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding(0)
                     .padding(.leading, -6)
+                    .opacity(isCurrent ? 1.0 : 0.6)
             }
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(.ultraThinMaterial)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.secondary.opacity(0.2))
+                            .fill(Color.secondary.opacity(isCurrent ? 0.1 : 0.2))
                     )
             )
             .scaleEffect(0.9)
         }
-        .buttonStyle(.plain)
         .keyboardShortcut(KeyEquivalent(Character("\((index % 9) + 1)")), modifiers: .command)
         .help("Translate into \(locale.description)")
         .disabled(isCurrent)
+        .buttonStyle(NoOpacityButtonStyle())
     }
     
     @ViewBuilder
@@ -807,5 +810,12 @@ extension Color {
                 return NSColor(light)
             }
         })
+    }
+}
+
+private struct NoOpacityButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(1)
     }
 }
