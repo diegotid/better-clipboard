@@ -72,7 +72,8 @@ final class ClipboardController: ObservableObject {
                             }
                             return
                         }
-                        let isEmojiOnly = !trimmed.isEmpty && trimmed.allSatisfy { $0.isEmoji }
+                        let noSpaces = trimmed.replacingOccurrences(of: " ", with: "")
+                        let isEmojiOnly = !noSpaces.isEmpty && noSpaces.allSatisfy { $0.isEmoji }
                         let entryType: CopiedContentType = isEmojiOnly ? .emoji : .text
                         let entry = CopiedContent(original: trimmed,
                                                   contentType: entryType)
