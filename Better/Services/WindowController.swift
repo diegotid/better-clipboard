@@ -331,8 +331,17 @@ private extension WindowController {
         windows = filteredEntries.map { createWindow(for: $0) }
         layoutWindows(animated: false)
         installEventMonitors()
-        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.async { [weak self] in
+            NSApp.activate(ignoringOtherApps: true)
+            self?.focusFrontWindow()
+        }
         updateToggleMenuTitle()
+    }
+
+    func focusFrontWindow() {
+        guard let front = windows.first else { return }
+        front.window.makeKeyAndOrderFront(nil)
+        front.window.makeFirstResponder(front.host.view)
     }
 
     func closeWindows() {
@@ -760,7 +769,7 @@ private extension WindowController {
         container.addSubview(blurView)
         container.addSubview(hostingView)
         window.contentView = container
-        window.initialFirstResponder = container
+        window.initialFirstResponder = hostingView
         return (window, hostingController)
     }
 
@@ -1479,4 +1488,3 @@ extension WindowController {
         return true
     }
 }
-
