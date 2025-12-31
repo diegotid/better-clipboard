@@ -104,8 +104,8 @@ struct ClipboardEntry: View {
                 Spacer()
                 if isFrontMost {
                     languageBar()
-                        .padding(.top, -6)
-                        .padding(.horizontal, -6)
+                        .padding(.top, 1)
+                        .padding(.leading, 6)
                 }
             }
             ZStack {
@@ -341,61 +341,146 @@ struct ClipboardEntry: View {
                     .background(WindowLevelModifier())
                 }
             } else {
-                ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
-                    languageButton(
-                        language: item.element,
-                        index: languageContext.languages.firstIndex(of: item.element) ?? 0
-                    )
+                if languageContext.languages.count > 3 {
+                    let currentLanguage = languageContext.languages.first(where: {
+                        $0.languageCode == (translatingTo ?? translatedTo ?? textLanguage)?.languageCode
+                    })
+                    Menu {
+                        ForEach(Array(languageContext.languages.enumerated()).filter {
+                            $0.element != currentLanguage
+                        }, id: \.element) { item in
+                            let language = item.element
+                            let locale = Locale(identifier: language.maximalIdentifier)
+                            Button {
+                                triggerTranslation(to: language)
+                            } label: {
+                                LanguageFlag(locale: locale, diameter: 31.5)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            }
+                            .keyboardShortcut(
+                                KeyEquivalent(Character("\((item.offset % 9) + 1)")),
+                                modifiers: .command
+                            )
+                        }
+                    } label: {
+                        if let currentLanguage {
+                            languageButton(
+                                language: currentLanguage,
+                                index: languageContext.languages.firstIndex(of: currentLanguage) ?? 0,
+                                isMenu: true
+                            )
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: "translate")
+                                Image(systemName: "chevron.down")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2.5)
+                            .padding(.horizontal, 6)
+                            .buttonPillStyle()
+                        }
+                    }
+                    .fixedSize()
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .padding(.trailing, -6)
+                    Group {
+                        ForEach(Array(languageContext.languages.enumerated()).filter {
+                            $0.element != currentLanguage
+                        }, id: \.element) { item in
+                            let language = item.element
+                            let isCurrent = language.languageCode == currentLanguage?.languageCode
+                            Button(action: {
+                                triggerTranslation(to: language)
+                            }) {
+                                EmptyView()
+                            }
+                            .keyboardShortcut(
+                                KeyEquivalent(Character("\((item.offset % 9) + 1)")),
+                                modifiers: .command
+                            )
+                            .disabled(isCurrent)
+                        }
+                    }
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                } else {
+                    ForEach(Array(languageContext.languages.enumerated()), id: \.element) { item in
+                        languageButton(
+                            language: item.element,
+                            index: languageContext.languages.firstIndex(of: item.element) ?? 0
+                        )
+                    }
                 }
             }
         }
-        .padding(.top, 7)
-        .padding(.trailing, 7)
     }
     
     @ViewBuilder
     func languageButton(
         language: Locale.Language,
-        index: Int
+        index: Int,
+        isMenu: Bool = false
     ) -> some View {
         let locale = Locale(identifier: language.maximalIdentifier)
         let lang = translatedTo ?? textLanguage
         let isCurrent = language.languageCode == lang?.languageCode
         Button(action: {
-            $translatingTo.wrappedValue = language
-            NotificationCenter.default.post(name: .translationRequested,
-                                            object: language)
+            triggerTranslation(to: language)
         }) {
             HStack {
-                HStack {
-                    if isCurrent {
-                        Image(systemName: "checkmark")
-                            .bold()
-                            .font(.system(size: 15))
-                            .foregroundStyle(.accent)
-                            .opacity(0.6)
-                            .padding(.leading, 6)
-                            .padding(.trailing, 2)
-                    } else if $translatingTo.wrappedValue == language {
-                        ProgressView()
-                            .frame(width: 16, height: 16)
-                            .scaleEffect(0.6)
-                            .padding(.horizontal, 4)
-                            .padding(.leading, 4)
-                    } else {
-                        Image(systemName: "command")
-                            .padding(.leading, 2)
-                        Text("\(index + 1)")
-                            .padding(.leading, -5)
+                if !isMenu {
+                    HStack {
+                        if $translatingTo.wrappedValue == language {
+                            ProgressView()
+                                .frame(width: 16, height: 16)
+                                .scaleEffect(0.6)
+                                .padding(.horizontal, 4)
+                                .padding(.leading, 4)
+                        } else if isCurrent {
+                            Image(systemName: "checkmark")
+                                .bold()
+                                .font(.system(size: 15))
+                                .foregroundStyle(.accent)
+                                .opacity(0.6)
+                                .padding(.leading, 6)
+                                .padding(.trailing, 2)
+                        } else {
+                            Image(systemName: "command")
+                                .padding(.leading, 2)
+                            Text("\(index + 1)")
+                                .padding(.leading, -6)
+                        }
                     }
+                    .padding(.vertical, 3)
+                    .padding(.leading, 1)
+                    .frame(width: 38)
                 }
-                .padding(.vertical, 3)
-                .padding(.horizontal, 8)
                 LanguageFlag(locale: locale, diameter: 31.5)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding(0)
                     .padding(.leading, -6)
                     .opacity(isCurrent ? 1.0 : 0.6)
+                if isMenu {
+                    if $translatingTo.wrappedValue == language {
+                        ProgressView()
+                            .frame(width: 16, height: 16)
+                            .scaleEffect(0.6)
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .padding(.trailing, 11)
+                    } else {
+                        Image(systemName: "chevron.down")
+                            .bold()
+                            .font(.system(size: 15))
+                            .foregroundStyle(.accent)
+                            .opacity(0.6)
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .padding(.trailing, 9)
+                    }
+                }
             }
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -647,6 +732,7 @@ private extension ClipboardEntry {
         let source = editedText
         Task {
             await translator.reconfigureIfNeeded(target: language)
+            try await Task.sleep(for: .seconds(2))
             await MainActor.run {
                 translationFailed = false
             }
@@ -656,6 +742,7 @@ private extension ClipboardEntry {
                     translatedTo = language
                     editedText = translation
                     translationFailed = false
+                    translatingTo = nil
                 }
             } catch {
                 await MainActor.run {
@@ -664,6 +751,24 @@ private extension ClipboardEntry {
                 }
             }
         }
+    }
+    
+    func triggerTranslation(to language: Locale.Language) {
+        withAnimation {
+            $translatingTo.wrappedValue = language
+        }
+        NotificationCenter.default.post(name: .translationRequested,
+                                        object: language)
+    }
+    
+    func languageDisplayName(_ language: Locale.Language) -> String {
+        let locale = Locale(identifier: language.maximalIdentifier)
+        if let code = language.languageCode?.identifier,
+           let name = locale.localizedString(forLanguageCode: code) {
+            return name
+        }
+        return locale.localizedString(forIdentifier: language.maximalIdentifier)
+            ?? language.maximalIdentifier
     }
     
     func decodeImage(data: Data) async -> NSImage? {
