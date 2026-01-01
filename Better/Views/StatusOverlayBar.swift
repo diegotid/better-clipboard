@@ -91,7 +91,9 @@ struct StatusOverlayBar: View {
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .fixedSize()
-                        goProButton(accentuate: context.totalCount == maxHistoryEntries)
+                        if !context.filterPinned {
+                            goProButton(accentuate: context.totalCount == maxHistoryEntries)
+                        }
                     }
                 }
                 .padding(.trailing, 6)

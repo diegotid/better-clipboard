@@ -106,6 +106,7 @@ struct ClipboardEntry: View {
                     languageBar()
                         .padding(.top, 1)
                         .padding(.leading, 6)
+                        .padding(.trailing, -3)
                 }
             }
             ZStack {
@@ -267,9 +268,9 @@ struct ClipboardEntry: View {
         }) {
             HStack {
                 shortcut(mods: ["command"], key: "P")
-                Image(systemName: localIsPinned ? "pin.slash.fill" : "pin")
+                Image(systemName: localIsPinned ? "pin.slash" : "pin")
                     .font(.subheadline)
-                    .foregroundStyle(localIsPinned ? .white : (canPin ? .primary : .secondary))
+                    .foregroundStyle(canPin ? .primary : .secondary)
                     .padding(.trailing, 8)
             }
             .buttonPillStyle(localIsPinned: localIsPinned, canPin: canPin)
@@ -442,8 +443,7 @@ struct ClipboardEntry: View {
                             Image(systemName: "checkmark")
                                 .bold()
                                 .font(.system(size: 15))
-                                .foregroundStyle(.accent)
-                                .opacity(0.6)
+                                .foregroundStyle(.secondary)
                                 .padding(.leading, 6)
                                 .padding(.trailing, 2)
                         } else {
@@ -472,12 +472,10 @@ struct ClipboardEntry: View {
                             .padding(.trailing, 11)
                     } else {
                         Image(systemName: "chevron.down")
-                            .bold()
-                            .font(.system(size: 15))
-                            .foregroundStyle(.accent)
-                            .opacity(0.6)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
                             .padding(.vertical, 3)
-                            .padding(.horizontal, 6)
+                            .padding(.horizontal, 8)
                             .padding(.trailing, 9)
                     }
                 }
@@ -788,7 +786,7 @@ private struct ButtonPillStyle: ViewModifier {
     func body(content: Content) -> some View {
         let overlayStyle: AnyShapeStyle = {
             if localIsPinned {
-                return AnyShapeStyle(Color.accentColor.opacity(0.2))
+                return AnyShapeStyle(Color.accentColor.opacity(0.4))
             }
             return AnyShapeStyle(Color.secondary.opacity(canPin ? 0.2 : 0.1))
         }()

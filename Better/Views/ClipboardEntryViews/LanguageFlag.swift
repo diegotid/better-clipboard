@@ -20,7 +20,7 @@ struct LanguageFlag: View {
                     .frame(width: proxy.size.width * 1.6,
                            height: proxy.size.height * 1.6,
                            alignment: .center)
-                    .position(x: proxy.size.width / 3.5, y: proxy.size.height / 2)
+                    .position(x: proxy.size.width / 4.2, y: proxy.size.height / 2.1)
                     .clipped()
             }
         }
