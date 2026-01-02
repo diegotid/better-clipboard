@@ -72,3 +72,7 @@ private extension KeyboardListener {
         callback()
     }
 }
+
+extension Notification.Name {
+    static let historyHotKeyChanged = Notification.Name("historyHotKeyChanged")
+}

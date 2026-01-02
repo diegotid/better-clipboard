@@ -145,6 +145,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
             await checkLifetimeUnlocked()
         }
         statusOverlayContext.setSearchTextIfNeeded(searchText)
+        NotificationCenter.default.addObserver(
+            forName: .historyHotKeyChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.registerHotKey()
+        }
         statusOverlaySearchImmediateObserver = statusOverlayContext.$searchText
             .dropFirst()
             .removeDuplicates()
@@ -663,8 +670,11 @@ private extension WindowController {
     }
 
     func registerHotKey() {
-        let keyCode = UInt32(kVK_ANSI_V)
-        let modifiers = UInt32(cmdKey | shiftKey)
+        let defaults = UserDefaults.standard
+        let storedKeyCode = defaults.object(forKey: HotkeySettings.keyCodeKey) as? Int ?? HotkeySettings.defaultKeyCode
+        let storedModifiers = defaults.object(forKey: HotkeySettings.modifiersKey) as? Int ?? HotkeySettings.defaultModifiers
+        let keyCode = UInt32(storedKeyCode == 0 ? HotkeySettings.defaultKeyCode : storedKeyCode)
+        let modifiers = UInt32(storedModifiers == 0 ? HotkeySettings.defaultModifiers : storedModifiers)
         KeyboardListener.shared.register(keyCode: keyCode, modifiers: modifiers) { [weak self] in
             guard let self else {
                 return

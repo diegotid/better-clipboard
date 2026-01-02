@@ -19,6 +19,10 @@ struct SettingsPopover: View {
     @State private var maxPinnedEntries: Int = 3
     @State private var maxHistoryInput: Int = PurchaseManager.defaultHistoryLimit
     @State private var manager = PurchaseManager()
+    @State private var hotkeyDisplay: String = HotkeySettings.displayString(
+        keyCode: UserDefaults.standard.object(forKey: HotkeySettings.keyCodeKey) as? Int ?? HotkeySettings.defaultKeyCode,
+        modifiers: UserDefaults.standard.object(forKey: HotkeySettings.modifiersKey) as? Int ?? HotkeySettings.defaultModifiers
+    )
     
     @FocusState private var historyFieldFocused: Bool
     
@@ -47,21 +51,36 @@ struct SettingsPopover: View {
                     Text("General")
                         .bold()
                 } footer: {
-                    Text("Automatically start Better Clipboard when you log in.")
+                    Text("Start Better Clipboard automatically when you log in")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Divider()
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 14)
                 Section {
                     VStack(alignment: .leading) {
+                        HStack {
+                            Text("Show history shortcut")
+                            Spacer()
+                            HotkeyCaptureField(display: $hotkeyDisplay) { keyCode, modifiers in
+                                hotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
+                                UserDefaults.standard.set(keyCode, forKey: HotkeySettings.keyCodeKey)
+                                UserDefaults.standard.set(modifiers, forKey: HotkeySettings.modifiersKey)
+                                NotificationCenter.default.post(name: .historyHotKeyChanged, object: nil)
+                            }
+                        }
+                        .padding(.top, 2)
+                        Text("Click to change the shortcut. Avoid conflicts with system shortcuts.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         HStack {
                             Text("Maximum items")
                             Spacer()
                             TextField("", value: $maxHistoryInput, format: .number)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 60)
+                                .frame(width: 72)
                                 .multilineTextAlignment(.trailing)
                                 .focused($historyFieldFocused)
                                 .onSubmit {
@@ -69,7 +88,8 @@ struct SettingsPopover: View {
                                 }
                                 .disabled(!unlocked)
                         }
-                        Text("Lowering this limit below your current history immediately deletes the oldest items to fit. New entries will replace the oldest ones when the limit is reached.")
+                        .padding(.top, 6)
+                        Text("Lowering this limit deletes the oldest items. New copies replace old ones when the limit is reached.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -79,7 +99,7 @@ struct SettingsPopover: View {
                             Image(systemName: "lock.open")
                             Text("Pro unlocked")
                         }
-                        .padding(.top, 6)
+                        .padding(.top, 12)
                         Text("Unlimited pinned entries available.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -87,11 +107,11 @@ struct SettingsPopover: View {
                     } else {
                         VStack(alignment: .leading) {
                             HStack {
-                                Text("Maximum pinned items")
+                                Text("Max pinned items")
                                 Spacer()
                                 TextField("", value: $maxPinnedEntries, format: .number)
                                     .textFieldStyle(.roundedBorder)
-                                    .frame(width: 60)
+                                    .frame(width: 72)
                                     .multilineTextAlignment(.trailing)
                                     .disabled(!unlocked)
                             }
@@ -137,7 +157,7 @@ struct SettingsPopover: View {
             }
         }
         .padding()
-        .frame(width: 240)
+        .frame(width: 250)
         .onAppear {
             maxHistoryInput = maxHistoryEntries
             loadLaunchAtLoginState()
