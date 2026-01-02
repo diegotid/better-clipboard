@@ -7,11 +7,20 @@
 
 import Foundation
 
-enum CopiedContentType: String, Codable {
+enum CopiedContentType: String, Codable, CaseIterable {
     case text
     case emoji
     case image
     case link
+    
+    var symbolName: String {
+        switch self {
+        case .text: return "text.alignleft"
+        case .emoji: return "face.smiling"
+        case .image: return "photo"
+        case .link: return "link"
+        }
+    }
 }
 
 struct CopiedContent: Identifiable, Codable, Hashable {

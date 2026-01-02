@@ -51,6 +51,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var proPopover: NSPopover?
     private let purchaseManager = PurchaseManager()
     private let statusOverlayContext = StatusOverlayContext()
+    private var lastFrontFrame: NSRect?
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
     private var searchText: String = ""
@@ -60,7 +61,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
     }
     private var filteredEntries: [CopiedContent] {
         let lowercasedSearch = searchText.lowercased()
-        let base = statusOverlayContext.filterPinned ? baseHistory.filter { $0.isPinned } : baseHistory
+        let base = baseHistory.filter {(
+            $0.isPinned ||
+            !statusOverlayContext.filterPinned
+        ) && (
+            statusOverlayContext.filterType == nil ||
+            statusOverlayContext.filterType == $0.contentType
+        )}
         guard !lowercasedSearch.isEmpty else {
             return base
         }
@@ -152,11 +159,13 @@ final class WindowController: NSObject, NSMenuItemValidation {
             .sink { [weak self] newValue in
                 self?.handleSearchTextChange(newValue)
             }
-        statusOverlayFilterObserver = statusOverlayContext.$filterPinned
-            .removeDuplicates()
+        statusOverlayFilterObserver = Publishers.CombineLatest(
+            statusOverlayContext.$filterPinned.removeDuplicates(),
+            statusOverlayContext.$filterType.removeDuplicates()
+        )
             .receive(on: RunLoop.main)
-            .sink { [weak self] newValue in
-                self?.handleFilterPinnedChange(newValue)
+            .sink { [weak self] newFilterPinned, newFilterType in
+                self?.handleFilterChange(newFilterPinned, newFilterType)
             }
         deleteRequestObserver = NotificationCenter.default.addObserver(
             forName: .deleteFrontEntryRequested,
@@ -822,8 +831,36 @@ private extension WindowController {
     func layoutWindows(animated: Bool) {
         guard !windows.isEmpty, windows.count == entries.count else {
             if windows.isEmpty {
-                statusOverlayContext.update(index: 0, total: 0)
-                hideStatusOverlayBar()
+                statusOverlayContext.update(index: 0, total: entries.count)
+                let (overlayWindow, _) = statusOverlayComponents()
+                let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.frame ?? .zero
+                let anchor = lastFrontFrame
+                let origin: NSPoint
+                if let anchor {
+                    origin = NSPoint(
+                        x: anchor.midX - CGFloat(statusOverlayWidth) / 2,
+                        y: anchor.maxY + 40
+                    )
+                } else {
+                    origin = NSPoint(
+                        x: screenFrame.midX - CGFloat(statusOverlayWidth) / 2,
+                        y: screenFrame.maxY - CGFloat(statusOverlayHeight) - 80
+                    )
+                }
+                overlayWindow.setFrame(
+                    NSRect(origin: origin, size: NSSize(width: statusOverlayWidth, height: statusOverlayHeight)),
+                    display: true
+                )
+                if !overlayWindow.isVisible {
+                    overlayWindow.alphaValue = 0
+                    overlayWindow.makeKeyAndOrderFront(nil)
+                    NSAnimationContext.runAnimationGroup({ context in
+                        context.duration = 0.18
+                        overlayWindow.animator().alphaValue = 1
+                    })
+                } else {
+                    overlayWindow.makeKeyAndOrderFront(nil)
+                }
             }
             return
         }
@@ -927,6 +964,7 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
         }
         if let frame = frontFrame,
            let reference = frontWindowReference {
+            lastFrontFrame = frame
             updateStatusOverlayBar(frontFrame: frame,
                                    referenceWindow: reference,
                                    screenFrame: screenFrame,
@@ -1089,7 +1127,8 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
                 return event
             }
             let isSettingsShortcut = event.keyCode == UInt16(kVK_ANSI_Comma) && event.modifierFlags.contains(.command)
-            guard !self.windows.isEmpty || isSettingsShortcut else {
+            let overlayVisible = self.statusOverlayBar?.isVisible == true
+            guard !self.windows.isEmpty || overlayVisible || isSettingsShortcut else {
                 return event
             }
             switch event.keyCode {
@@ -1284,8 +1323,9 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
         updateToggleMenuTitle()
     }
     
-    func handleFilterPinnedChange(_ newValue: Bool) {
-        guard statusOverlayContext.filterPinned == newValue else {
+    func handleFilterChange(_ filterPinned: Bool, _ filterType: CopiedContentType?) {
+        guard statusOverlayContext.filterPinned == filterPinned &&
+                statusOverlayContext.filterType == filterType else {
             return
         }
         beginEntriesUpdate()
@@ -1293,40 +1333,11 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
         let previousWindows = windows
         let previousEntries = entries
         entries = filteredEntries
-        if newValue && entries.isEmpty {
-            for (window, _) in previousWindows {
-                window.orderOut(nil)
-            }
-            statusOverlayContext.update(index: 0, total: 0)
-            let (overlayWindow, _) = statusOverlayComponents()
-            if let _ = NSScreen.main ?? NSScreen.screens.first,
-               let firstWindow = previousWindows.first?.window {
-                let firstWindowFrame = firstWindow.frame
-                let origin = NSPoint(
-                    x: firstWindowFrame.midX - CGFloat(statusOverlayWidth) / 2,
-                    y: firstWindowFrame.maxY + 40
-                )
-                overlayWindow.setFrame(NSRect(origin: origin, size: NSSize(width: statusOverlayWidth, height: statusOverlayHeight)), display: true)
-                if !overlayWindow.isVisible {
-                    overlayWindow.alphaValue = 0
-                    overlayWindow.makeKeyAndOrderFront(nil)
-                    NSAnimationContext.runAnimationGroup({ context in
-                        context.duration = 0.18
-                        overlayWindow.animator().alphaValue = 1
-                    })
-                } else {
-                    overlayWindow.makeKeyAndOrderFront(nil)
-                }
-            }
-        } else if !newValue && previousEntries.isEmpty && entries.isEmpty {
-            statusOverlayContext.update(index: 0, total: 0)
-        } else {
-            windows = entries.map { createWindow(for: $0) }
-            closeWindowPairs(previousWindows)
-            layoutWindows(animated: false)
-        }
+        windows = entries.map { createWindow(for: $0) }
+        closeWindowPairs(previousWindows)
+        layoutWindows(animated: false)
         updateToggleMenuTitle()
-        if newValue == false {
+        if filterPinned == false {
             statusOverlayContext.setUpdatingEntries(false)
         }
     }

@@ -28,7 +28,7 @@ struct StatusOverlayBar: View {
     }
 
     private var shouldShowWrapButton: Bool {
-        !isSearching && context.totalCount > 1 && context.currentIndex > 1 //== context.totalCount
+        !isSearching && context.totalCount > 1 && context.currentIndex > 1
     }
 
     var body: some View {
@@ -82,8 +82,8 @@ struct StatusOverlayBar: View {
                     if shouldShowWrapButton {
                         goTopButton()
                     }
-                    if context.totalCount == 0 && context.filterPinned {
-                        Text("No pinned entries")
+                    if context.totalCount == 0 && context.filtered {
+                        Text("No items match your filter")
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.secondary)
                     } else if context.totalCount > 0 {
@@ -91,7 +91,7 @@ struct StatusOverlayBar: View {
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .fixedSize()
-                        if !context.filterPinned {
+                        if !context.filtered {
                             goProButton(accentuate: context.totalCount == maxHistoryEntries)
                         }
                     }
@@ -180,16 +180,30 @@ struct StatusOverlayBar: View {
     private func toggleFilterButton() -> some View {
         Menu {
             Toggle(isOn: $context.filterPinned) {
-                Label("Pinned only", systemImage: context.filterPinned ? "pin.slash" : "pin")
+                Label("Only pinned", systemImage: context.filterPinned ? "pin.slash" : "pin")
                     .padding(.leading, 18)
             }
             .keyboardShortcut("p", modifiers: [.command, .shift])
             .help(context.filterPinned ? "Switch pinned only off" : "Switch pinned only on")
+            Divider()
+            ForEach(CopiedContentType.allCases, id: \.self) { type in
+                typeToggle(type: type)
+            }
         } label: {
             HStack {
-                Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.secondary)
+                if context.filterPinned {
+                    Image(systemName: "pin")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                if let filterType = context.filterType {
+                    Image(systemName: filterType.symbolName)
+                        .font(.system(size: 12, weight: .medium))
+                }
+                if !context.filterPinned && context.filterType == nil {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -200,13 +214,26 @@ struct StatusOverlayBar: View {
                     .fill(.ultraThinMaterial)
                     .overlay(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(context.filterPinned
+                            .fill(context.filtered
                                   ? Color.accentColor.opacity(0.6)
                                   : Color.secondary.opacity(0.1))
                     )
             )
         }
         .buttonStyle(.plain)
+    }
+    
+    @ViewBuilder
+    private func typeToggle(type: CopiedContentType) -> some View {
+        Toggle(isOn: Binding(get: {
+            context.filterType == type
+        }, set: { newValue in
+            context.filterType = newValue ? type : nil
+        })) {
+            Image(systemName: type.symbolName)
+            Text("Only \(String(describing: type))s")
+                .padding(.leading, 18)
+        }
     }
     
     @ViewBuilder
