@@ -13,7 +13,7 @@ struct StatusOverlayBar: View {
     @ObservedObject var context: StatusOverlayContext
     
     @AppStorage("maxHistoryEntries")
-    private var maxHistoryEntries: Int = PurchaseManager.defaultHistoryLimit
+    private var maxHistoryEntries: Int = PurchaseManager.freeMaxCopiedEntries
     
     @FocusState private var searchFieldFocused: Bool
     @State private var hasAppeared = false

@@ -16,8 +16,7 @@ struct SettingsPopover: View {
     @State private var isProcessing = false
     @State private var errorMessage: String?
     @State private var unlocked: Bool = false
-    @State private var maxPinnedEntries: Int = 3
-    @State private var maxHistoryInput: Int = PurchaseManager.defaultHistoryLimit
+    @State private var maxHistoryInput: Int = PurchaseManager.freeMaxCopiedEntries
     @State private var manager = PurchaseManager()
     @State private var hotkeyDisplay: String = HotkeySettings.displayString(
         keyCode: UserDefaults.standard.object(forKey: HotkeySettings.keyCodeKey) as? Int ?? HotkeySettings.defaultKeyCode,
@@ -27,7 +26,7 @@ struct SettingsPopover: View {
     @FocusState private var historyFieldFocused: Bool
     
     @AppStorage("maxHistoryEntries")
-    private var maxHistoryEntries: Int = PurchaseManager.defaultHistoryLimit
+    private var maxHistoryEntries: Int = PurchaseManager.freeMaxCopiedEntries
     
     var body: some View {
         Form {
@@ -89,7 +88,14 @@ struct SettingsPopover: View {
                                 .disabled(!unlocked)
                         }
                         .padding(.top, 6)
-                        Text("Lowering this limit deletes the oldest items. New copies replace old ones when the limit is reached.")
+                        Text(unlocked
+                             ? """
+                                Lowering this limit deletes the oldest items. New copies replace old ones when the limit is reached.
+                                """
+                             : """
+                                New copies replace old ones when the limit is reached. Unlock Pro to change this limit.
+                                """
+                        )
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -107,15 +113,14 @@ struct SettingsPopover: View {
                     } else {
                         VStack(alignment: .leading) {
                             HStack {
-                                Text("Max pinned items")
+                                Text("Maximum pinned items")
                                 Spacer()
-                                TextField("", value: $maxPinnedEntries, format: .number)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 72)
-                                    .multilineTextAlignment(.trailing)
-                                    .disabled(!unlocked)
+                                Text("\(PurchaseManager.freeMaxPinnedEntries)")
+                                    .foregroundStyle(.secondary)
+                                    .padding(.trailing, 3)
                             }
-                            Text("Unlock Pro for unlimited pins and custom history size.")
+                            .padding(.top, 6)
+                            Text("Unlock Pro for unlimited pins.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -142,16 +147,11 @@ struct SettingsPopover: View {
                         .disabled(manager.isLoading)
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
-                        .padding(.top, 3)
+                        .padding(.top, 8)
                     }
                 } header: {
-                    HStack {
-                        Text("History")
-                            .bold()
-                        if !unlocked {
-                            Image(systemName: "lock.fill")
-                        }
-                    }
+                    Text("History")
+                        .bold()
                 }
                 .padding(.bottom, 3)
             }

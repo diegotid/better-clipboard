@@ -19,7 +19,7 @@ final class ClipboardController: ObservableObject {
     }
     
     @AppStorage("maxHistoryEntries")
-    private var maxHistoryEntries: Int = PurchaseManager.defaultHistoryLimit
+    private var maxHistoryEntries: Int = PurchaseManager.freeMaxCopiedEntries
     
     private let watcher = ClipboardWatcher()
     private let linkFetcher = LinkMetadataFetcher()
@@ -174,8 +174,7 @@ private extension ClipboardController {
                 await MainActor.run {
                     if !isUnlocked {
                         let pinnedCount = self.history.filter { $0.isPinned }.count
-                        let maxPinnedEntries = 3
-                        if pinnedCount >= maxPinnedEntries {
+                        if pinnedCount >= PurchaseManager.freeMaxPinnedEntries {
                             return
                         }
                     }
