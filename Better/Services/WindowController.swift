@@ -72,7 +72,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
             return base
         }
         return base.filter { entry in
-            entry.original.lowercased().contains(lowercasedSearch)
+            let base = entry.original
+                .appending(entry.linkMetatags?.title ?? "")
+                .appending(entry.linkMetatags?.description ?? "")
+            return base.lowercased().contains(lowercasedSearch)
         }
     }
     
@@ -1341,7 +1344,6 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
         beginEntriesUpdate()
         defer { finishEntriesUpdate() }
         let previousWindows = windows
-        let previousEntries = entries
         entries = filteredEntries
         windows = entries.map { createWindow(for: $0) }
         closeWindowPairs(previousWindows)
