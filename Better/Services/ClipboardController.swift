@@ -65,7 +65,11 @@ final class ClipboardController: ObservableObject {
                         guard !trimmed.isEmpty else {
                             return
                         }
-                        if let url = self.linkFetcher.detectURL(in: trimmed) {
+                        if let url = self.linkFetcher.detectURL(in: trimmed),
+                           let scheme = url.scheme?.lowercased(),
+                           scheme == "http" || scheme == "https",
+                           let host = url.host,
+                           self.isLikelyWebHost(host) {
                             if self.enabledContentTypes.contains(.link) {
                                 let entry = CopiedContent(original: trimmed,
                                                           contentType: .link)
@@ -81,6 +85,24 @@ final class ClipboardController: ObservableObject {
                                 }
                                 return
                             }
+                        } else if trimmed.lowercased().hasPrefix("www."),
+                                  let url = URL(string: "https://\(trimmed)"),
+                                  let host = url.host,
+                                  self.isLikelyWebHost(host),
+                                  self.enabledContentTypes.contains(.link) {
+                            let entry = CopiedContent(original: trimmed,
+                                                      contentType: .link)
+                            self.insert(entry: entry)
+                            Task.detached { [weak self] in
+                                guard let self else { return }
+                                let meta = await self.linkFetcher.fetchLinkMetatags(for: url)
+                                await MainActor.run {
+                                    if let meta {
+                                        self.updateLinkMetadata(for: entry.id, metatags: meta)
+                                    }
+                                }
+                            }
+                            return
                         }
                         let noSpaces = trimmed.replacingOccurrences(of: " ", with: "")
                         let isEmojiOnly = !noSpaces.isEmpty && noSpaces.allSatisfy { $0.isEmoji }
@@ -185,6 +207,14 @@ private extension ClipboardController {
             }
         }
         enabledContentTypes = Set(CopiedContentType.allCases)
+    }
+    
+    func isLikelyWebHost(_ host: String) -> Bool {
+        let parts = host.split(separator: ".")
+        guard parts.count >= 2 else { return false }
+        let tld = parts.last ?? ""
+        let tldValid = (2...10).contains(tld.count) && tld.allSatisfy { $0.isLetter }
+        return tldValid
     }
     
     func updateLinkMetadata(for id: UUID, metatags: LinkMetatags) {
