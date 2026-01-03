@@ -9,16 +9,18 @@ import Foundation
 
 enum CopiedContentType: String, Codable, CaseIterable {
     case text
-    case emoji
     case image
     case link
+    case code
+    case emoji
     
     var symbolName: String {
         switch self {
-        case .text: return "text.alignleft"
+        case .text: return "text.page.fill"
+        case .image: return "photo.fill"
+        case .link: return "link.circle.fill"
+        case .code: return "curlybraces.square.fill"
         case .emoji: return "face.smiling"
-        case .image: return "photo"
-        case .link: return "link"
         }
     }
 }

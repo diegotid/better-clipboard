@@ -17,6 +17,7 @@ final class ClipboardController: ObservableObject {
             saveHistory()
         }
     }
+    private var enabledContentTypes: Set<CopiedContentType> = Set(CopiedContentType.allCases)
     
     @AppStorage("maxHistoryEntries")
     private var maxHistoryEntries: Int = PurchaseManager.freeMaxCopiedEntries
@@ -29,9 +30,16 @@ final class ClipboardController: ObservableObject {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder.appendingPathComponent("clipboard-history.json")
     }()
+    private let enabledTypesKey = "enabledContentTypes"
     
     init() {
         loadHistory()
+        NotificationCenter.default.addObserver(forName: .enabledContentTypesChanged, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.loadEnabledContentTypes()
+            }
+        }
         start()
         NotificationCenter.default.addObserver(forName: .toggleEntryPinnedRequested, object: nil, queue: .main) { [weak self] notification in
             guard let self,
@@ -58,27 +66,37 @@ final class ClipboardController: ObservableObject {
                             return
                         }
                         if let url = self.linkFetcher.detectURL(in: trimmed) {
-                            let entry = CopiedContent(original: trimmed,
-                                                      contentType: .link)
-                            self.insert(entry: entry)
-                            Task.detached { [weak self] in
-                                guard let self else { return }
-                                let meta = await self.linkFetcher.fetchLinkMetatags(for: url)
-                                await MainActor.run {
-                                    if let meta {
-                                        self.updateLinkMetadata(for: entry.id, metatags: meta)
+                            if self.enabledContentTypes.contains(.link) {
+                                let entry = CopiedContent(original: trimmed,
+                                                          contentType: .link)
+                                self.insert(entry: entry)
+                                Task.detached { [weak self] in
+                                    guard let self else { return }
+                                    let meta = await self.linkFetcher.fetchLinkMetatags(for: url)
+                                    await MainActor.run {
+                                        if let meta {
+                                            self.updateLinkMetadata(for: entry.id, metatags: meta)
+                                        }
                                     }
                                 }
+                                return
                             }
-                            return
                         }
                         let noSpaces = trimmed.replacingOccurrences(of: " ", with: "")
                         let isEmojiOnly = !noSpaces.isEmpty && noSpaces.allSatisfy { $0.isEmoji }
-                        let entryType: CopiedContentType = isEmojiOnly ? .emoji : .text
+                        let entryType: CopiedContentType = {
+                            if isEmojiOnly && self.enabledContentTypes.contains(.emoji) {
+                                return .emoji
+                            }
+                            return .text
+                        }()
                         let entry = CopiedContent(original: trimmed,
                                                   contentType: entryType)
                         self.insert(entry: entry)
                     case .image(let imageData):
+                        guard self.enabledContentTypes.contains(.image) else {
+                            return
+                        }
                         let imageName = "Image \(Date().formatted(date: .omitted, time: .shortened))"
                         let entry = CopiedContent(original: imageName,
                                                   contentType: .image,
@@ -126,7 +144,7 @@ private extension ClipboardController {
         }
         let updated = [existing ?? entry] + dedupedHistory
         history = Array(updated.prefix(maxHistoryEntries))
-        if entry.contentType == .text || entry.contentType == .emoji {
+        if (entry.contentType == .text || entry.contentType == .emoji) && enabledContentTypes.contains(.code) {
             let entryID = entry.id
             let entryOriginal = entry.original
             Task.detached { [entryID, entryOriginal] in
@@ -156,6 +174,17 @@ private extension ClipboardController {
         } catch {
             print("Failed to load clipboard history: \(error)")
         }
+    }
+    
+    func loadEnabledContentTypes() {
+        if let stored = UserDefaults.standard.array(forKey: enabledTypesKey) as? [String] {
+            let types = stored.compactMap { CopiedContentType(rawValue: $0) }
+            if !types.isEmpty {
+                enabledContentTypes = Set(types)
+                return
+            }
+        }
+        enabledContentTypes = Set(CopiedContentType.allCases)
     }
     
     func updateLinkMetadata(for id: UUID, metatags: LinkMetatags) {

@@ -190,25 +190,24 @@ struct StatusOverlayBar: View {
                 typeToggle(type: type)
             }
         } label: {
-            HStack {
+            HStack(alignment: .center) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
                 if context.filterPinned {
-                    Image(systemName: "pin")
+                    Image(systemName: "pin.fill")
                         .font(.system(size: 12, weight: .medium))
                 }
                 if let filterType = context.filterType {
                     Image(systemName: filterType.symbolName)
-                        .font(.system(size: 12, weight: .medium))
-                }
-                if !context.filterPinned && context.filterType == nil {
-                    Image(systemName: "line.3.horizontal.decrease")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.secondary)
                 }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            .padding(10)
+            .frame(height: 34)
+            .padding(.horizontal, 10)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.ultraThinMaterial)

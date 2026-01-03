@@ -75,4 +75,5 @@ private extension KeyboardListener {
 
 extension Notification.Name {
     static let historyHotKeyChanged = Notification.Name("historyHotKeyChanged")
+    static let enabledContentTypesChanged = Notification.Name("enabledContentTypesChanged")
 }

@@ -16,17 +16,28 @@ struct SettingsPopover: View {
     @State private var isProcessing = false
     @State private var errorMessage: String?
     @State private var unlocked: Bool = false
-    @State private var maxHistoryInput: Int = PurchaseManager.freeMaxCopiedEntries
     @State private var manager = PurchaseManager()
     @State private var hotkeyDisplay: String = HotkeySettings.displayString(
         keyCode: UserDefaults.standard.object(forKey: HotkeySettings.keyCodeKey) as? Int ?? HotkeySettings.defaultKeyCode,
         modifiers: UserDefaults.standard.object(forKey: HotkeySettings.modifiersKey) as? Int ?? HotkeySettings.defaultModifiers
     )
+    @State private var maxHistoryInput: Int = PurchaseManager.freeMaxCopiedEntries
+    @State private var enabledContentTypes: Set<CopiedContentType> = Set(CopiedContentType.allCases)
     
     @FocusState private var historyFieldFocused: Bool
     
     @AppStorage("maxHistoryEntries")
     private var maxHistoryEntries: Int = PurchaseManager.freeMaxCopiedEntries
+
+    private func caption(for type: CopiedContentType) -> String {
+        switch type {
+        case .text: return "Text is always saved"
+        case .image: return "Don't add"
+        case .link: return "Show as plain text"
+        case .code: return "Show as plain text"
+        case .emoji: return "Show at default size"
+        }
+    }
     
     var body: some View {
         Form {
@@ -51,6 +62,55 @@ struct SettingsPopover: View {
                         .bold()
                 } footer: {
                     Text("Start Better Clipboard automatically when you log in")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Divider()
+                    .padding(.vertical, 14)
+                Section {
+                    HStack {
+                        Text("Content type")
+                        Spacer()
+                        Text("When disabled")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.trailing, 6)
+                    }
+                    ForEach(CopiedContentType.allCases, id: \.self) { type in
+                        Toggle(isOn: Binding(
+                            get: {
+                                enabledContentTypes.contains(type)
+                            },
+                            set: { isOn in
+                                if isOn {
+                                    enabledContentTypes.insert(type)
+                                } else {
+                                    enabledContentTypes.remove(type)
+                                }
+                            })
+                        ) {
+                            HStack {
+                                Image(systemName: type.symbolName)
+                                    .frame(width: 22, alignment: .center)
+                                Text(String(describing: type).capitalized)
+                                    .frame(minWidth: 54, alignment: .leading)
+                                Spacer()
+                                Text(caption(for: type))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.trailing, 6)
+                                    .opacity(type == .text ? 1.0 : 0.6)
+                            }
+                        }
+                        .disabled(type == .text)
+                    }
+                } header: {
+                    Text("Saved Content")
+                        .bold()
+                        .padding(.bottom, 9)
+                } footer: {
+                    Text("Choose which types of content are saved to your clipboard history.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -171,6 +231,12 @@ struct SettingsPopover: View {
                 await checkLifetimeUnlocked()
             }
         }
+        .onAppear {
+            loadEnabledContentTypes()
+        }
+        .onChange(of: enabledContentTypes) { _, newValue in
+            persistEnabledContentTypes(newValue)
+        }
         .onChange(of: maxHistoryEntries) { _, newValue in
             maxHistoryInput = newValue
         }
@@ -186,6 +252,23 @@ struct SettingsPopover: View {
 }
 
 private extension SettingsPopover {
+    func loadEnabledContentTypes() {
+        if let stored = UserDefaults.standard.array(forKey: "enabledContentTypes") as? [String] {
+            let types = stored.compactMap { CopiedContentType(rawValue: $0) }
+            if !types.isEmpty {
+                enabledContentTypes = Set(types)
+                return
+            }
+        }
+        enabledContentTypes = Set(CopiedContentType.allCases)
+    }
+
+    func persistEnabledContentTypes(_ types: Set<CopiedContentType>) {
+        let raw = types.map { $0.rawValue }
+        UserDefaults.standard.set(raw, forKey: "enabledContentTypes")
+        NotificationCenter.default.post(name: .enabledContentTypesChanged, object: nil)
+    }
+
     func loadLaunchAtLoginState() {
         let service = SMAppService.mainApp
         launchAtLogin = service.status == .enabled || service.status == .requiresApproval
