@@ -230,7 +230,7 @@ struct StatusOverlayBar: View {
             context.filterType = newValue ? type : nil
         })) {
             Image(systemName: type.symbolName)
-            Text("Only \(String(describing: type))s")
+            Text("Only \(String(describing: type))\(type != .code ? "s" : "")")
                 .padding(.leading, 18)
         }
     }
