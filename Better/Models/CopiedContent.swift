@@ -20,7 +20,7 @@ enum CopiedContentType: String, Codable, CaseIterable {
         case .image: return "photo.fill"
         case .link: return "link.circle.fill"
         case .code: return "curlybraces.square.fill"
-        case .emoji: return "face.smiling"
+        case .emoji: return "face.smiling.inverse"
         }
     }
 }
