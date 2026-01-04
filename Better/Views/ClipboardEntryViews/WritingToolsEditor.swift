@@ -177,7 +177,7 @@ private extension WritingToolsEditor {
         textView.textContainer?.lineBreakMode = .byClipping
         textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
                                                        height: CGFloat.greatestFiniteMagnitude)
-        textView.autoresizingMask = []
+        textView.autoresizingMask = [.width]
         scrollView.hasHorizontalScroller = false
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
