@@ -65,27 +65,28 @@ final class ClipboardController: ObservableObject {
                         guard !trimmed.isEmpty else {
                             return
                         }
-                        if let url = self.linkFetcher.detectURL(in: trimmed),
+                        let lowerTrimmed = trimmed.lowercased()
+                        if (lowerTrimmed.hasPrefix("http://") || lowerTrimmed.hasPrefix("https://")),
+                           let url = self.linkFetcher.detectURL(in: trimmed),
                            let scheme = url.scheme?.lowercased(),
                            scheme == "http" || scheme == "https",
                            let host = url.host,
-                           self.isLikelyWebHost(host) {
-                            if self.enabledContentTypes.contains(.link) {
-                                let entry = CopiedContent(original: trimmed,
-                                                          contentType: .link)
-                                self.insert(entry: entry)
-                                Task.detached { [weak self] in
-                                    guard let self else { return }
-                                    let meta = await self.linkFetcher.fetchLinkMetatags(for: url)
-                                    await MainActor.run {
-                                        if let meta {
-                                            self.updateLinkMetadata(for: entry.id, metatags: meta)
-                                        }
+                           self.isLikelyWebHost(host),
+                           self.enabledContentTypes.contains(.link) {
+                            let entry = CopiedContent(original: trimmed,
+                                                      contentType: .link)
+                            self.insert(entry: entry)
+                            Task.detached { [weak self] in
+                                guard let self else { return }
+                                let meta = await self.linkFetcher.fetchLinkMetatags(for: url)
+                                await MainActor.run {
+                                    if let meta {
+                                        self.updateLinkMetadata(for: entry.id, metatags: meta)
                                     }
                                 }
-                                return
                             }
-                        } else if trimmed.lowercased().hasPrefix("www."),
+                            return
+                        } else if lowerTrimmed.hasPrefix("www."),
                                   let url = URL(string: "https://\(trimmed)"),
                                   let host = url.host,
                                   self.isLikelyWebHost(host),
