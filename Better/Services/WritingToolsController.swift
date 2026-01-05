@@ -66,20 +66,22 @@ final class WritingToolsController: ObservableObject {
         guard let tv = textView else {
             return
         }
-        var dismissed = false
         if #available(macOS 15.2, *) {
             if let coordinator = tv.writingToolsCoordinator,
                coordinator.state != .inactive {
                 coordinator.stopWritingTools()
-                dismissed = true
             }
-        }
-        if dismissed == false {
-            _ = tv.tryToPerform(#selector(NSResponder.cancelOperation(_:)), with: nil)
         }
     }
 
     func scheduleDismiss(delay: TimeInterval = 0.25) {
+        guard let tv = textView, tv.window != nil else { return }
+        if #available(macOS 15.2, *) {
+            if let coordinator = tv.writingToolsCoordinator,
+               coordinator.state == .inactive {
+                return
+            }
+        }
         pendingDismissal?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.dismissWritingToolsIfNeeded()
