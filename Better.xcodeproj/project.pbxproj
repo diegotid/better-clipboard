@@ -134,7 +134,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\n\nSRC=\"${PROJECT_DIR}/Tools/langdetect\"\nDEST_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nDEST=\"${DEST_DIR}/langdetect\"\n\nmkdir -p \"$DEST_DIR\"\n/bin/cp -f \"$SRC\" \"$DEST\"\n/bin/chmod 755 \"$DEST\"\n";
+			shellScript = "set -euo pipefail\n\nSRC=\"${PROJECT_DIR}/Tools/langdetect\"\n\nHELPERS_DIR=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nBUNDLE_DIR=\"${HELPERS_DIR}/langdetect.app\"\nCONTENTS_DIR=\"${BUNDLE_DIR}/Contents\"\nMACOS_DIR=\"${CONTENTS_DIR}/MacOS\"\nPLIST_PATH=\"${CONTENTS_DIR}/Info.plist\"\nDEST_BIN=\"${MACOS_DIR}/langdetect\"\n\nLEGACY_BIN=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/langdetect\"\nif [ -f \"$LEGACY_BIN\" ]; then\n  echo \"Removing legacy langdetect at: $LEGACY_BIN\"\n  /bin/rm -f \"$LEGACY_BIN\"\nfi\n\nmkdir -p \"$MACOS_DIR\"\n\n/bin/cp -f \"$SRC\" \"$DEST_BIN\"\n/bin/chmod 755 \"$DEST_BIN\"\n\nBUNDLE_ID=\"studio.cuatro.Better.langdetect\"\n/bin/cat > \"$PLIST_PATH\" << EOF\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n  <key>CFBundleIdentifier</key>\n  <string>${BUNDLE_ID}</string>\n  <key>CFBundleName</key>\n  <string>langdetect</string>\n  <key>CFBundlePackageType</key>\n  <string>APPL</string>\n  <key>CFBundleExecutable</key>\n  <string>langdetect</string>\n  <key>CFBundleVersion</key>\n  <string>1</string>\n  <key>CFBundleShortVersionString</key>\n  <string>1.0</string>\n</dict>\n</plist>\nEOF\n\nENTITLEMENTS_PATH=\"${TARGET_TEMP_DIR}/langdetect.entitlements\"\n/bin/cat > \"$ENTITLEMENTS_PATH\" << 'EOF'\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n  <key>com.apple.security.app-sandbox</key>\n  <true/>\n  <key>com.apple.security.inherit</key>\n  <true/>\n</dict>\n</plist>\nEOF\n\nif [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" \\\n    --identifier \"$BUNDLE_ID\" \\\n    --entitlements \"$ENTITLEMENTS_PATH\" \\\n    --options runtime \\\n    --timestamp \\\n    \"$DEST_BIN\"\nfi\n\nif [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" \\\n    --entitlements \"$ENTITLEMENTS_PATH\" \\\n    --options runtime \\\n    --timestamp \\\n    \"$BUNDLE_DIR\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -251,7 +251,7 @@
 				DEVELOPMENT_TEAM = F6HFAVTS49;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;

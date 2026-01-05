@@ -99,11 +99,8 @@ private extension CodeDetector {
     }
 
     static func detectLanguageWithEnry(snippet: String) -> EnryDetectionResult {
-        let helperURL = Bundle.main.url(forResource: "langdetect", withExtension: nil)
-            ?? Bundle.main.url(forResource: "enry", withExtension: nil)
-        guard let helperURL else {
-            return .noSignal
-        }
+        let helperURL = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Helpers/langdetect.app/Contents/MacOS/langdetect")
         do {
             let process = Process()
             process.executableURL = helperURL
