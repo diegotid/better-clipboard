@@ -227,25 +227,30 @@ private extension ClipboardController {
     
     func togglePin(for id: UUID) {
         guard let index = history.firstIndex(where: { $0.id == id }) else { return }
-        var entry = history[index]
+        let entry = history[index]
         if !entry.isPinned {
             Task {
                 let isUnlocked = await checkIfUnlocked()
                 await MainActor.run {
+                    guard let refreshedIndex = self.history.firstIndex(where: { $0.id == id }) else { return }
+                    guard self.history[refreshedIndex].isPinned == false else { return }
                     if !isUnlocked {
                         let pinnedCount = self.history.filter { $0.isPinned }.count
                         if pinnedCount >= PurchaseManager.freeMaxPinnedEntries {
                             return
                         }
                     }
-                    var updatedEntry = self.history[index]
+                    var updatedEntry = self.history[refreshedIndex]
                     updatedEntry.isPinned.toggle()
-                    self.history[index] = updatedEntry
+                    self.history[refreshedIndex] = updatedEntry
+                    NotificationCenter.default.post(name: .entryPinnedStateChanged, object: id)
                 }
             }
         } else {
-            entry.isPinned.toggle()
-            history[index] = entry
+            var updatedEntry = entry
+            updatedEntry.isPinned.toggle()
+            history[index] = updatedEntry
+            NotificationCenter.default.post(name: .entryPinnedStateChanged, object: id)
         }
     }
     

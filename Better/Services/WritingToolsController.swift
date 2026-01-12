@@ -14,6 +14,7 @@ extension Notification.Name {
     static let deleteFrontEntryRequested = Notification.Name("deleteFrontEntryRequested")
     static let wrapToFirstEntryRequested = Notification.Name("wrapToFirstEntryRequested")
     static let toggleEntryPinnedRequested = Notification.Name("toggleEntryPinnedRequested")
+    static let entryPinnedStateChanged = Notification.Name("entryPinnedStateChanged")
     static let searchEntriesRequested = Notification.Name("searchEntriesRequested")
     static let translationRequested = Notification.Name("translationRequested")
     static let restorePurchasesRequested = Notification.Name("restorePurchasesRequested")

@@ -200,15 +200,12 @@ final class WindowController: NSObject, NSMenuItemValidation {
             }
         }
         _ = NotificationCenter.default.addObserver(
-            forName: .toggleEntryPinnedRequested,
+            forName: .entryPinnedStateChanged,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 10_000_000) // 0.01 seconds
-                self.refreshEntriesAfterPinToggle()
-            }
+            self.refreshEntriesAfterPinToggle()
         }
         _ = NotificationCenter.default.addObserver(
             forName: .openSettingsRequested,
