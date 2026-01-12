@@ -1398,20 +1398,37 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
     }
 
     func sendPasteToLastActiveApp() {
-        if let lastApp = lastActiveApp {
-            _ = lastApp.activate(options: [.activateAllWindows])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                let src = CGEventSource(stateID: .combinedSessionState)
-                let keyVDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
-                let keyVUp = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
-                keyVDown?.flags = .maskCommand
-                keyVUp?.flags = .maskCommand
-                let loc = CGEventTapLocation.cghidEventTap
-                keyVDown?.post(tap: loc)
-                keyVUp?.post(tap: loc)
-            }
+        guard let lastApp = lastActiveApp else {
+            return
         }
         lastActiveApp = nil
+        _ = lastApp.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        let targetPID = lastApp.processIdentifier
+        let retryDelay: TimeInterval = 0.05
+        let maxAttempts = 8
+        func postPasteEvent() {
+            let src = CGEventSource(stateID: .combinedSessionState)
+            let keyVDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
+            let keyVUp = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
+            keyVDown?.flags = .maskCommand
+            keyVUp?.flags = .maskCommand
+            let loc = CGEventTapLocation.cghidEventTap
+            keyVDown?.post(tap: loc)
+            keyVUp?.post(tap: loc)
+        }
+        func attemptPaste(remaining: Int) {
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            if frontmost?.processIdentifier == targetPID || remaining <= 0 {
+                postPasteEvent()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) {
+                    attemptPaste(remaining: remaining - 1)
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) {
+            attemptPaste(remaining: maxAttempts)
+        }
     }
     
     func copy(_ string: String) {
