@@ -1561,7 +1561,9 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
               windows.count == entries.count else {
             return
         }
-        guard let targetIndex = entries.firstIndex(where: { entryIndexLookup[$0.id] == 0 }),
+        let minBaseIndex = entries.compactMap { entryIndexLookup[$0.id] }.min()
+        guard let minBaseIndex,
+              let targetIndex = entries.firstIndex(where: { entryIndexLookup[$0.id] == minBaseIndex }),
               targetIndex != 0 else {
             return
         }
