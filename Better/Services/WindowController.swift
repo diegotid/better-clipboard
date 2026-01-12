@@ -1157,8 +1157,9 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
             return
         }
         let actualIndex: Int
-        if statusOverlayContext.filterPinned {
-            actualIndex = entries.filter { entryIndexLookup[$0.id] ?? Int.max < frontIndex }.count
+        if let frontEntry = entries.first,
+           let filteredIndex = filteredEntries.firstIndex(where: { $0.id == frontEntry.id }) {
+            actualIndex = filteredIndex
         } else {
             actualIndex = frontIndex
         }
