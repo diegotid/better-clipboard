@@ -18,6 +18,7 @@ final class ClipboardController: ObservableObject {
         }
     }
     private var enabledContentTypes: Set<CopiedContentType> = Set(CopiedContentType.allCases)
+    private var suppressedPasteboardChange: SuppressedPasteboardChange?
     
     @AppStorage("maxHistoryEntries")
     private var maxHistoryEntries: Int = PurchaseManager.freeMaxCopiedEntries
@@ -53,12 +54,15 @@ final class ClipboardController: ObservableObject {
     }
     
     func start() {
-        watcher.start { [weak self] content in
+        watcher.start { [weak self] content, changeCount in
             guard let self = self else {
                 return
             }
             Task {
                 await MainActor.run {
+                    if self.shouldIgnorePasteboardChange(changeCount, content: content) {
+                        return
+                    }
                     switch content {
                     case .text(let text):
                         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -140,6 +144,14 @@ final class ClipboardController: ObservableObject {
             print("Failed to save clipboard history: \(error)")
         }
     }
+
+    func suppressPasteboardChange(_ changeCount: Int, content: ClipboardContent) {
+        suppressedPasteboardChange = SuppressedPasteboardChange(
+            changeCount: changeCount,
+            timestamp: Date(),
+            content: content
+        )
+    }
     
     func removeEntry(with id: UUID) {
         history.removeAll { $0.id == id }
@@ -157,6 +169,51 @@ final class ClipboardController: ObservableObject {
 }
 
 private extension ClipboardController {
+    struct SuppressedPasteboardChange {
+        let changeCount: Int
+        let timestamp: Date
+        let content: ClipboardContent
+    }
+
+    func shouldIgnorePasteboardChange(_ changeCount: Int, content: ClipboardContent) -> Bool {
+        guard let suppressedPasteboardChange else {
+            return false
+        }
+        let age = Date().timeIntervalSince(suppressedPasteboardChange.timestamp)
+        if age > 2.0 {
+            self.suppressedPasteboardChange = nil
+            return false
+        }
+        if changeCount == suppressedPasteboardChange.changeCount {
+            self.suppressedPasteboardChange = nil
+            return true
+        }
+        if matchesSuppressedContent(current: content, suppressed: suppressedPasteboardChange.content) {
+            self.suppressedPasteboardChange = nil
+            return true
+        }
+        if case .image = suppressedPasteboardChange.content {
+            self.suppressedPasteboardChange = nil
+            return true
+        }
+        if changeCount > suppressedPasteboardChange.changeCount {
+            self.suppressedPasteboardChange = nil
+        }
+        return false
+    }
+
+    func matchesSuppressedContent(current: ClipboardContent,
+                                  suppressed: ClipboardContent) -> Bool {
+        switch (current, suppressed) {
+        case (.text(let currentText), .text(let suppressedText)):
+            return currentText == suppressedText
+        case (.image(let currentData), .image(let suppressedData)):
+            return currentData == suppressedData
+        default:
+            return false
+        }
+    }
+
     func insert(entry: CopiedContent) {
         let existing = history.first {
             $0.contentType != .image &&

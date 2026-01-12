@@ -16,7 +16,7 @@ final class ClipboardWatcher {
     private var lastChange = NSPasteboard.general.changeCount
     private var timer: Timer?
 
-    func start(onChange: @escaping (ClipboardContent) -> Void) {
+    func start(onChange: @escaping (ClipboardContent, Int) -> Void) {
         stop()
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { _ in
             let board = NSPasteboard.general
@@ -25,9 +25,9 @@ final class ClipboardWatcher {
             }
             self.lastChange = board.changeCount
             if let text = ClipboardWatcher.readText(from: board) {
-                onChange(.text(text))
+                onChange(.text(text), board.changeCount)
             } else if let imageData = board.data(forType: .tiff) ?? board.data(forType: .png) {
-                onChange(.image(imageData))
+                onChange(.image(imageData), board.changeCount)
             }
         }
     }

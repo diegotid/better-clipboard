@@ -1465,6 +1465,7 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
+        clipboard.suppressPasteboardChange(pasteboard.changeCount, content: .text(string))
         sendPasteToLastActiveApp()
     }
 
@@ -1480,6 +1481,7 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
             pasteboard.setData(data, forType: .tiff)
             pasteboard.setData(data, forType: .png)
         }
+        clipboard.suppressPasteboardChange(pasteboard.changeCount, content: .image(data))
         sendPasteToLastActiveApp()
     }
 
