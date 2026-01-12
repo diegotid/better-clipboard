@@ -51,6 +51,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var proPopover: NSPopover?
     private let purchaseManager = PurchaseManager()
     private let statusOverlayContext = StatusOverlayContext()
+    private var pendingPinnedFilterDisableFrontID: UUID?
+    private var suppressFilterChangeRefresh = false
     private var lastFrontFrame: NSRect?
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
@@ -203,9 +205,9 @@ final class WindowController: NSObject, NSMenuItemValidation {
             forName: .entryPinnedStateChanged,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             guard let self else { return }
-            self.refreshEntriesAfterPinToggle()
+            self.handlePinnedStateChanged(notification)
         }
         _ = NotificationCenter.default.addObserver(
             forName: .openSettingsRequested,
@@ -304,6 +306,10 @@ private extension WindowController {
               let frontEntry = entries.first else {
             closeWindows()
             return
+        }
+        if statusOverlayContext.filterPinned && frontEntry.isPinned {
+            suppressFilterChangeRefresh = true
+            statusOverlayContext.filterPinned = false
         }
         paste(entry: frontEntry)
         if windows.count > 1 {
@@ -712,6 +718,23 @@ private extension WindowController {
         clipboard.saveHistory()
     }
 
+    func handlePinnedStateChanged(_ notification: Notification) {
+        guard let id = notification.object as? UUID else {
+            refreshEntriesAfterPinToggle()
+            return
+        }
+        if statusOverlayContext.filterPinned,
+           let frontEntry = entries.first,
+           frontEntry.id == id,
+           let updatedEntry = clipboard.history.first(where: { $0.id == id }),
+           updatedEntry.isPinned == false {
+            pendingPinnedFilterDisableFrontID = id
+            statusOverlayContext.filterPinned = false
+            return
+        }
+        refreshEntriesAfterPinToggle()
+    }
+
     func refreshEntriesAfterPinToggle() {
         guard showingWindows else { return }
         beginEntriesUpdate()
@@ -757,6 +780,55 @@ private extension WindowController {
             }
             layoutWindows(animated: true)
         }
+    }
+
+    func refreshEntriesPreservingFrontmost(frontID: UUID) {
+        guard showingWindows else { return }
+        beginEntriesUpdate()
+        defer { finishEntriesUpdate() }
+        updateBaseHistory(clipboard.history)
+        let filtered = filteredEntries
+        guard let frontEntry = filtered.first(where: { $0.id == frontID }) else {
+            let previousWindows = windows
+            entries = filtered
+            windows = filtered.map { createWindow(for: $0) }
+            closeWindowPairs(previousWindows)
+            layoutWindows(animated: true)
+            return
+        }
+        let filteredByID = Dictionary(uniqueKeysWithValues: filtered.map { ($0.id, $0) })
+        var orderedEntries: [CopiedContent] = [frontEntry]
+        for entry in entries {
+            guard entry.id != frontID,
+                  let updatedEntry = filteredByID[entry.id] else { continue }
+            if !orderedEntries.contains(where: { $0.id == entry.id }) {
+                orderedEntries.append(updatedEntry)
+            }
+        }
+        let orderedIDs = Set(orderedEntries.map(\.id))
+        for entry in filtered where !orderedIDs.contains(entry.id) {
+            orderedEntries.append(entry)
+        }
+        var existingPairs: [UUID: (window: NSWindow, host: NSHostingController<AnyView>)] = [:]
+        for (pair, entry) in zip(windows, entries) {
+            existingPairs[entry.id] = pair
+        }
+        var newWindows: [(window: NSWindow, host: NSHostingController<AnyView>)] = []
+        for entry in orderedEntries {
+            if let pair = existingPairs[entry.id] {
+                newWindows.append(pair)
+            } else {
+                newWindows.append(createWindow(for: entry))
+            }
+        }
+        let newIDs = Set(orderedEntries.map(\.id))
+        for (pair, entry) in zip(windows, entries) where !newIDs.contains(entry.id) {
+            pair.window.orderOut(nil)
+            pair.window.close()
+        }
+        windows = newWindows
+        entries = orderedEntries
+        layoutWindows(animated: true)
     }
 
     func createWindow(for entry: CopiedContent) -> (NSWindow, NSHostingController<AnyView>) {
@@ -1348,6 +1420,23 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
     func handleFilterChange(_ filterPinned: Bool, _ filterType: CopiedContentType?) {
         guard statusOverlayContext.filterPinned == filterPinned &&
                 statusOverlayContext.filterType == filterType else {
+            return
+        }
+        guard showingWindows else {
+            pendingPinnedFilterDisableFrontID = nil
+            suppressFilterChangeRefresh = false
+            return
+        }
+        if let frontID = pendingPinnedFilterDisableFrontID, filterPinned == false {
+            pendingPinnedFilterDisableFrontID = nil
+            refreshEntriesPreservingFrontmost(frontID: frontID)
+            if filterPinned == false {
+                statusOverlayContext.setUpdatingEntries(false)
+            }
+            return
+        }
+        if suppressFilterChangeRefresh {
+            suppressFilterChangeRefresh = false
             return
         }
         beginEntriesUpdate()
