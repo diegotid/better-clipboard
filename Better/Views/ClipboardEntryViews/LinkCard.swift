@@ -21,18 +21,19 @@ struct LinkCard: View {
                     case .failure:
                         Color.secondary.opacity(0.12)
                     case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
+                        GeometryReader { geo in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
+                        }
                     @unknown default:
                         Color.secondary.opacity(0.12)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 230)
-                .clipped()
             } else {
                 Color.secondary.opacity(0.08)
-                    .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 230)
             }
             VStack {
                 Spacer()
@@ -58,7 +59,6 @@ struct LinkCard: View {
                     }
                 }
                 .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .foregroundStyle(.primary)
