@@ -9,6 +9,7 @@ import SwiftUI
 import Carbon.HIToolbox
 import Combine
 import QuartzCore
+import ApplicationServices
 import StoreKit
 internal import AppKit
 
@@ -56,6 +57,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var lastFrontFrame: NSRect?
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
+    private var hasRequestedAccessibility = false
     private var searchText: String = ""
     private var entriesUpdateResetTask: DispatchWorkItem?
     private var showingWindows: Bool {
@@ -341,7 +343,10 @@ private extension WindowController {
 
     func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
         if captureLastApp {
-            lastActiveApp = NSWorkspace.shared.frontmostApplication
+            if let frontmost = NSWorkspace.shared.frontmostApplication,
+               frontmost.bundleIdentifier != Bundle.main.bundleIdentifier {
+                lastActiveApp = frontmost
+            }
         }
         if let aboutWin = aboutWindow {
             aboutWin.orderOut(nil)
@@ -1486,12 +1491,40 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
         sendPasteToLastActiveApp()
     }
 
+    private func activateAppForPaste(_ app: NSRunningApplication) {
+        if #available(macOS 14.0, *) {
+            _ = app.activate(options: [.activateAllWindows])
+        } else {
+            _ = app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        }
+    }
+
+    private func ensureAccessibilityPermissionForPaste() -> Bool {
+        if AXIsProcessTrusted() {
+            return true
+        }
+        if !hasRequestedAccessibility {
+            hasRequestedAccessibility = true
+            let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+            let options = [promptKey: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        }
+        return false
+    }
+
     func sendPasteToLastActiveApp() {
         guard let lastApp = lastActiveApp else {
             return
         }
         lastActiveApp = nil
-        _ = lastApp.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        if lastApp.bundleIdentifier == Bundle.main.bundleIdentifier {
+            return
+        }
+        guard ensureAccessibilityPermissionForPaste() else {
+            activateAppForPaste(lastApp)
+            return
+        }
+        activateAppForPaste(lastApp)
         let targetPID = lastApp.processIdentifier
         let retryDelay: TimeInterval = 0.05
         let maxAttempts = 8
