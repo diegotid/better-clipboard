@@ -58,6 +58,7 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private let languageContext = LanguageContext()
     private var hasPresentedInitialWindows = false
     private var hasRequestedAccessibility = false
+    private var hasShownAccessibilityAlert = false
     private var searchText: String = ""
     private var entriesUpdateResetTask: DispatchWorkItem?
     private var showingWindows: Bool {
@@ -168,7 +169,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.registerHotKey()
+            guard let self else { return }
+            Task { @MainActor in
+                self.registerHotKey()
+            }
         }
         statusOverlaySearchImmediateObserver = statusOverlayContext.$searchText
             .dropFirst()
@@ -208,8 +212,10 @@ final class WindowController: NSObject, NSMenuItemValidation {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self else { return }
-            self.handlePinnedStateChanged(notification)
+            Task { @MainActor in
+                guard let self else { return }
+                self.handlePinnedStateChanged(notification)
+            }
         }
         _ = NotificationCenter.default.addObserver(
             forName: .openSettingsRequested,
@@ -473,7 +479,7 @@ private extension WindowController {
             return
         }
         button.image = NSImage(systemSymbolName: "sparkles.rectangle.stack.fill",
-                               accessibilityDescription: "Better")
+                               accessibilityDescription: "Better Clipboard")
         button.image?.isTemplate = true
         let menu = NSMenu()
         menu.addItem(aboutMenuItem)
@@ -497,7 +503,7 @@ private extension WindowController {
     func clearClipboardHistoryAction(_ sender: Any?) {
         let alert = NSAlert()
         alert.messageText = "Clear Clipboard History?"
-        alert.informativeText = "This will permanently remove all clipboard items stored by Better. This action cannot be undone."
+        alert.informativeText = "This will permanently remove all clipboard items stored by Better Clipboard. This action cannot be undone."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Clear History")
         alert.buttons.first?.hasDestructiveAction = true
@@ -669,7 +675,7 @@ private extension WindowController {
             defer: false
         )
         window.center()
-        window.title = "About Better"
+        window.title = "About Better Clipboard"
         window.isReleasedWhenClosed = false
         window.contentViewController = hostingController
         window.level = .floating
@@ -1004,7 +1010,7 @@ private extension WindowController {
             let frame = NSRect(origin: origin, size: windowSize)
             window.contentMinSize = windowSize
             window.contentMaxSize = windowSize
-let pinnedCount = clipboard.history.filter { $0.isPinned }.count
+            let pinnedCount = clipboard.history.filter { $0.isPinned }.count
             let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned
             host.rootView = AnyView(
                 ClipboardEntry(entry: entry,
@@ -1235,7 +1241,7 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
             case returnKeyCode:
                 self.pasteFrontMost()
                 return nil
-            case uint16(kVK_UpArrow):
+            case UInt16(kVK_UpArrow):
                 if event.modifierFlags.contains(.command) {
                     NotificationCenter.default.post(name: .wrapToFirstEntryRequested,
                                                     object: nil)
@@ -1509,7 +1515,25 @@ let pinnedCount = clipboard.history.filter { $0.isPinned }.count
             let options = [promptKey: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
         }
+        if !hasShownAccessibilityAlert {
+            hasShownAccessibilityAlert = true
+            showAccessibilityAlert()
+        }
         return false
+    }
+
+    private func showAccessibilityAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Enable Accessibility to Paste"
+        alert.informativeText = "Better Clipboard needs Accessibility permission to paste into other apps. Open System Settings and enable Better Clipboard in Privacy & Security > Accessibility."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Not Now")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     func sendPasteToLastActiveApp() {
