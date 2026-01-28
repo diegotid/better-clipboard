@@ -129,7 +129,7 @@ final class ClipboardController: ObservableObject {
                                                   contentType: .image,
                                                   imageData: imageData)
                         let updated = [entry] + self.history
-                        self.history = Array(updated.prefix(self.maxHistoryEntries))
+                        self.history = self.trimmedHistoryPreservingPinned(updated, limit: self.maxHistoryEntries)
                     }
                 }
             }
@@ -223,7 +223,7 @@ private extension ClipboardController {
             $0.contentType == .image || ($0.rewritten ?? $0.original) != entry.original
         }
         let updated = [existing ?? entry] + dedupedHistory
-        history = Array(updated.prefix(maxHistoryEntries))
+        history = trimmedHistoryPreservingPinned(updated, limit: maxHistoryEntries)
         if (entry.contentType == .text || entry.contentType == .emoji) && enabledContentTypes.contains(.code) {
             let entryID = entry.id
             let entryOriginal = entry.original
@@ -250,7 +250,7 @@ private extension ClipboardController {
         do {
             let data = try Data(contentsOf: historyFileURL)
             let loaded = try JSONDecoder().decode([CopiedContent].self, from: data)
-            history = Array(loaded.prefix(maxHistoryEntries))
+            history = trimmedHistoryPreservingPinned(loaded, limit: maxHistoryEntries)
         } catch {
             print("Failed to load clipboard history: \(error)")
         }
@@ -280,6 +280,19 @@ private extension ClipboardController {
         var entry = history[index]
         entry.linkMetatags = metatags
         history[index] = entry
+    }
+
+    func trimmedHistoryPreservingPinned(_ entries: [CopiedContent], limit: Int) -> [CopiedContent] {
+        guard entries.count > limit, limit >= 0 else { return entries }
+        var trimmed = entries
+        var index = trimmed.count - 1
+        while trimmed.count > limit, index >= 0 {
+            if trimmed[index].isPinned == false {
+                trimmed.remove(at: index)
+            }
+            index -= 1
+        }
+        return trimmed
     }
     
     func togglePin(for id: UUID) {
@@ -333,7 +346,7 @@ extension ClipboardController {
     func trimHistory(to newLimit: Int) {
         guard newLimit >= 0 else { return }
         if history.count > newLimit {
-            history = Array(history.prefix(newLimit))
+            history = trimmedHistoryPreservingPinned(history, limit: newLimit)
         }
     }
 }
