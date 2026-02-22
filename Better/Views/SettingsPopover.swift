@@ -17,9 +17,13 @@ struct SettingsPopover: View {
     @State private var errorMessage: String?
     @State private var unlocked: Bool = false
     @State private var manager = PurchaseManager()
-    @State private var hotkeyDisplay: String = HotkeySettings.displayString(
+    @State private var historyHotkeyDisplay: String = HotkeySettings.displayString(
         keyCode: UserDefaults.standard.object(forKey: HotkeySettings.keyCodeKey) as? Int ?? HotkeySettings.defaultKeyCode,
         modifiers: UserDefaults.standard.object(forKey: HotkeySettings.modifiersKey) as? Int ?? HotkeySettings.defaultModifiers
+    )
+    @State private var translationHotkeyDisplay: String = HotkeySettings.displayString(
+        keyCode: UserDefaults.standard.object(forKey: HotkeySettings.translationKeyCodeKey) as? Int ?? HotkeySettings.defaultTranslationKeyCode,
+        modifiers: UserDefaults.standard.object(forKey: HotkeySettings.translationModifiersKey) as? Int ?? HotkeySettings.defaultTranslationModifiers
     )
     @State private var maxHistoryInput: Int = PurchaseManager.freeMaxCopiedEntries
     @State private var enabledContentTypes: Set<CopiedContentType> = Set(CopiedContentType.allCases)
@@ -122,11 +126,22 @@ struct SettingsPopover: View {
                         HStack {
                             Text("Show history shortcut")
                             Spacer()
-                            HotkeyCaptureField(display: $hotkeyDisplay) { keyCode, modifiers in
-                                hotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
+                            HotkeyCaptureField(display: $historyHotkeyDisplay) { keyCode, modifiers in
+                                historyHotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
                                 UserDefaults.standard.set(keyCode, forKey: HotkeySettings.keyCodeKey)
                                 UserDefaults.standard.set(modifiers, forKey: HotkeySettings.modifiersKey)
                                 NotificationCenter.default.post(name: .historyHotKeyChanged, object: nil)
+                            }
+                        }
+                        .padding(.top, 2)
+                        HStack {
+                            Text("Translate shortcut")
+                            Spacer()
+                            HotkeyCaptureField(display: $translationHotkeyDisplay) { keyCode, modifiers in
+                                translationHotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
+                                UserDefaults.standard.set(keyCode, forKey: HotkeySettings.translationKeyCodeKey)
+                                UserDefaults.standard.set(modifiers, forKey: HotkeySettings.translationModifiersKey)
+                                NotificationCenter.default.post(name: .translationHotKeyChanged, object: nil)
                             }
                         }
                         .padding(.top, 2)

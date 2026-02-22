@@ -9,12 +9,18 @@ import SwiftUI
 internal import AppKit
 
 struct ClipboardEntry: View {
+    enum PresentationMode: Equatable {
+        case history
+        case translationPreview(language: Locale.Language)
+    }
+
     var entry: CopiedContent
     let isFrontMost: Bool
     let canPin: Bool
     let onChange: (UUID, String, Locale.Language?) -> Void
     let onPaste: () -> Void
     let onCopy: (String) -> Void
+    let presentationMode: PresentationMode
     
     @ObservedObject var languageContext: LanguageContext
     @Environment(\.translator) private var translator: Translator?
@@ -36,6 +42,12 @@ struct ClipboardEntry: View {
     private var isImage: Bool { entry.contentType == .image }
     private var isLink: Bool { entry.contentType == .link }
     private var isEmoji: Bool { entry.contentType == .emoji }
+    private var isTranslationPreviewMode: Bool {
+        if case .translationPreview = presentationMode {
+            return true
+        }
+        return false
+    }
     private var isTranslationSupported: Bool {
         if #available(macOS 26.0, *) {
             return true
@@ -54,7 +66,8 @@ struct ClipboardEntry: View {
         onChange: @escaping (UUID, String, Locale.Language?) -> Void,
         onPaste: @escaping () -> Void,
         onCopy: @escaping (String) -> Void,
-        languageContext: LanguageContext
+        languageContext: LanguageContext,
+        presentationMode: PresentationMode = .history
     ) {
         self.entry = entry
         self.isFrontMost = isFrontMost
@@ -63,6 +76,7 @@ struct ClipboardEntry: View {
         self.onPaste = onPaste
         self.onCopy = onCopy
         self.languageContext = languageContext
+        self.presentationMode = presentationMode
         _editedText = State(initialValue: entry.rewritten ?? entry.original)
         _textLanguage = State(initialValue: entry.translatedTo)
         _translatedTo = State(initialValue: entry.translatedTo)
@@ -98,11 +112,15 @@ struct ClipboardEntry: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                pinButton()
-                    .padding(.trailing, 6)
-                Text(localIsPinned ? "Pinned" : "Copied \(formattedDate)")
+                if isTranslationPreviewMode {
+                    Text("Translation")
+                } else {
+                    pinButton()
+                        .padding(.trailing, 6)
+                    Text(localIsPinned ? "Pinned" : "Copied \(formattedDate)")
+                }
                 Spacer()
-                if isFrontMost {
+                if isFrontMost || isTranslationPreviewMode {
                     languageBar()
                         .padding(.top, 1)
                         .padding(.leading, 6)
@@ -182,9 +200,14 @@ struct ClipboardEntry: View {
                 }
             }
             if !isCode && editedText != entry.original {
-                Text("Original text")
-                Text(entry.original)
-                    .foregroundStyle(.secondary)
+                let originalSectionOpacity = isTranslationPreviewMode ? (isFrontMost ? 1.0 : 0.0) : 1.0
+                Group {
+                    Text("Original text")
+                    Text(entry.original)
+                        .foregroundStyle(.secondary)
+                }
+                .opacity(originalSectionOpacity)
+                .animation(.easeInOut(duration: 0.22), value: originalSectionOpacity)
                 Spacer()
             }
             if isFrontMost {
@@ -282,6 +305,22 @@ struct ClipboardEntry: View {
     
     @ViewBuilder
     func languageBar() -> some View {
+        if case let .translationPreview(language) = presentationMode {
+            let locale = Locale(identifier: language.maximalIdentifier)
+            HStack(spacing: 0) {
+                LanguageFlag(locale: locale, diameter: 31.5)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(3)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.secondary.opacity(0.18))
+                    )
+            )
+        } else {
         HStack(spacing: 2) {
             if isImage {
                 HStack {
@@ -416,6 +455,7 @@ struct ClipboardEntry: View {
                 }
             }
         }
+        }
     }
     
     @ViewBuilder
@@ -499,76 +539,80 @@ struct ClipboardEntry: View {
     @ViewBuilder
     func buttonBar() -> some View {
         HStack(spacing: 12) {
-            Button(action: {
-                NotificationCenter.default.post(name: .deleteFrontEntryRequested,
-                                                object: entry.id)
-            }) {
-                HStack {
-                    shortcut(mods: ["command", "delete.left"])
-                    Image(systemName: "trash")
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .padding(.trailing, 8)
-                        .transition(.scale.combined(with: .opacity))
-                }
-                .buttonPillStyle()
-            }
-            .keyboardShortcut(.delete, modifiers: .command)
-            .help("Delete this copy")
-            Spacer()
-            if !isImage && !isCode && editedText != entry.original {
+            if !isTranslationPreviewMode {
                 Button(action: {
-                    editedText = entry.original
-                    translatingTo = nil
-                    translatedTo = nil
+                    NotificationCenter.default.post(name: .deleteFrontEntryRequested,
+                                                    object: entry.id)
                 }) {
                     HStack {
-                        shortcut(mods: ["command"], key: "U")
-                        Text("Back to original")
-                            .font(.body)
-                            .padding(.trailing, 8)
-                    }
-                    .buttonPillStyle()
-                }
-                .keyboardShortcut("u", modifiers: .command)
-                .help("Back to the original copy")
-            }
-            if !isImage && !isLink && !isCode && !isEmoji && entry.original == editedText {
-                Button(action: {
-                    writingToolsController.showWritingToolsPanel()
-                }) {
-                    HStack {
-                        shortcut(mods: ["command"], key: "R")
-                        Text("Rewrite")
-                            .font(.body)
-                        Image(systemName: "sparkles")
+                        shortcut(mods: ["command", "delete.left"])
+                        Image(systemName: "trash")
                             .font(.subheadline)
                             .foregroundStyle(.primary)
                             .padding(.trailing, 8)
+                            .transition(.scale.combined(with: .opacity))
                     }
                     .buttonPillStyle()
                 }
-                .keyboardShortcut("r", modifiers: .command)
-                .help("Rewrite this copy")
-            }
-            if isLink {
-                Button(action: {
-                    if let url = linkDestination() {
-                        NSWorkspace.shared.open(url)
+                .keyboardShortcut(.delete, modifiers: .command)
+                .help("Delete this copy")
+                Spacer()
+                if !isImage && !isCode && editedText != entry.original {
+                    Button(action: {
+                        editedText = entry.original
+                        translatingTo = nil
+                        translatedTo = nil
+                    }) {
+                        HStack {
+                            shortcut(mods: ["command"], key: "U")
+                            Text("Back to original")
+                                .font(.body)
+                                .padding(.trailing, 8)
+                        }
+                        .buttonPillStyle()
                     }
-                }) {
-                    HStack {
-                        shortcut(mods: ["command"], key: "W")
-                        Text("Follow link")
-                            .font(.body)
-                            .padding(.trailing, 8)
-                    }
-                    .buttonPillStyle()
+                    .keyboardShortcut("u", modifiers: .command)
+                    .help("Back to the original copy")
                 }
-                .keyboardShortcut("w", modifiers: .command)
-                .help("Follow this link")
+                if !isImage && !isLink && !isCode && !isEmoji && entry.original == editedText {
+                    Button(action: {
+                        writingToolsController.showWritingToolsPanel()
+                    }) {
+                        HStack {
+                            shortcut(mods: ["command"], key: "R")
+                            Text("Rewrite")
+                                .font(.body)
+                            Image(systemName: "sparkles")
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .padding(.trailing, 8)
+                        }
+                        .buttonPillStyle()
+                    }
+                    .keyboardShortcut("r", modifiers: .command)
+                    .help("Rewrite this copy")
+                }
+                if isLink {
+                    Button(action: {
+                        if let url = linkDestination() {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        HStack {
+                            shortcut(mods: ["command"], key: "W")
+                            Text("Follow link")
+                                .font(.body)
+                                .padding(.trailing, 8)
+                        }
+                        .buttonPillStyle()
+                    }
+                    .keyboardShortcut("w", modifiers: .command)
+                    .help("Follow this link")
+                }
+            } else {
+                Spacer()
             }
-            if !isImage && (isCode || entry.original != editedText) {
+            if !isImage && (isCode || isTranslationPreviewMode || entry.original != editedText) {
                 Button(action: {
                     onCopy(editedText)
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -646,7 +690,7 @@ struct ClipboardEntry: View {
                 .buttonPillStyle()
             }
             .keyboardShortcut(.return)
-            .help("Paste this copy")
+            .help("Paste this \(isTranslationPreviewMode ? "translation" : "copy")")
         }
         .buttonStyle(.borderless)
         .font(.caption)

@@ -77,6 +77,13 @@ actor Translator {
             return text
         }
         let sourceLanguage = detectLanguage(for: text) ?? Locale.current.language
+        return try await translate(text, from: sourceLanguage, to: targetLanguage)
+    }
+
+    func translate(_ text: String, from sourceLanguage: Locale.Language, to targetLanguage: Locale.Language) async throws -> String {
+        guard isTranslationSupported else {
+            return text
+        }
         let key = SessionKey(source: sourceLanguage, target: targetLanguage)
         if #available(macOS 26.0, *) {
             let session = try await sessionForTranslation(for: key)
@@ -110,6 +117,28 @@ actor Translator {
         } catch {
             return false
         }
+    }
+
+    func supportsNativeTranslation() -> Bool {
+        isTranslationSupported
+    }
+
+    func installedTargetLanguages(from sourceLanguage: Locale.Language) async -> [Locale.Language] {
+        guard isTranslationSupported else {
+            return []
+        }
+        guard #available(macOS 26.0, *) else {
+            return []
+        }
+        let supported = await availability.supportedLanguages
+        var installed: [Locale.Language] = []
+        for language in supported where language != sourceLanguage {
+            let status = await availability.status(from: sourceLanguage, to: language)
+            if status == .installed {
+                installed.append(language)
+            }
+        }
+        return installed
     }
 }
 

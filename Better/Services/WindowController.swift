@@ -27,12 +27,29 @@ private let statusSideControlWidth: Int = 72
 
 @MainActor
 final class WindowController: NSObject, NSMenuItemValidation {
+    private enum CarouselMode {
+        case history
+        case translation
+    }
+
+    private enum HotKeyID {
+        static let history: UInt32 = 1
+        static let translation: UInt32 = 2
+    }
+
+    private struct PasteboardSnapshot {
+        let items: [[NSPasteboard.PasteboardType: Data]]
+        let primaryContent: ClipboardContent
+    }
+
     private let statusBarItem: NSStatusItem
     private let clipboard: ClipboardController
     private let translator: Translator
     private var windows: [(window: NSWindow, host: NSHostingController<AnyView>)] = []
     private var entries: [CopiedContent] = []
     private var baseHistory: [CopiedContent] = []
+    private var mode: CarouselMode = .history
+    private var translationLanguageByEntryID: [UUID: Locale.Language] = [:]
     private var isUnlocked: Bool = false
     private let defaultMaxPinnedEntries = 3
     private var entryIndexLookup: [UUID: Int] = [:]
@@ -48,6 +65,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var statusOverlaySearchObserver: AnyCancellable?
     private var statusOverlayFilterObserver: AnyCancellable?
     private var statusOverlaySearchImmediateObserver: AnyCancellable?
+    private var statusOverlayTranslationImmediateObserver: AnyCancellable?
+    private var statusOverlayTranslationObserver: AnyCancellable?
     private var settingsPopover: NSPopover?
     private var proPopover: NSPopover?
     private let purchaseManager = PurchaseManager()
@@ -61,11 +80,22 @@ final class WindowController: NSObject, NSMenuItemValidation {
     private var hasShownAccessibilityAlert = false
     private var searchText: String = ""
     private var entriesUpdateResetTask: DispatchWorkItem?
+    private var translationInputTask: Task<Void, Never>?
     private var showingWindows: Bool {
         windows.contains(where: { $0.window.isVisible })
     }
     private var filteredEntries: [CopiedContent] {
         let lowercasedSearch = searchText.lowercased()
+        if mode == .translation {
+            guard !lowercasedSearch.isEmpty else {
+                return baseHistory
+            }
+            return baseHistory.filter { entry in
+                let base = (entry.rewritten ?? entry.original)
+                    .appending(entry.original)
+                return base.lowercased().contains(lowercasedSearch)
+            }
+        }
         let base = baseHistory.filter {(
             $0.isPinned ||
             !statusOverlayContext.filterPinned
@@ -174,6 +204,16 @@ final class WindowController: NSObject, NSMenuItemValidation {
                 self.registerHotKey()
             }
         }
+        NotificationCenter.default.addObserver(
+            forName: .translationHotKeyChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.registerHotKey()
+            }
+        }
         statusOverlaySearchImmediateObserver = statusOverlayContext.$searchText
             .dropFirst()
             .removeDuplicates()
@@ -187,6 +227,20 @@ final class WindowController: NSObject, NSMenuItemValidation {
             .receive(on: RunLoop.main)
             .sink { [weak self] newValue in
                 self?.handleSearchTextChange(newValue)
+            }
+        statusOverlayTranslationImmediateObserver = statusOverlayContext.$translationInputText
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newValue in
+                self?.handleTranslationInputTyping(newValue)
+            }
+        statusOverlayTranslationObserver = statusOverlayContext.$translationInputText
+            .removeDuplicates()
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newValue in
+                self?.handleDebouncedTranslationInput(newValue)
             }
         statusOverlayFilterObserver = Publishers.CombineLatest(
             statusOverlayContext.$filterPinned.removeDuplicates(),
@@ -347,6 +401,42 @@ private extension WindowController {
         })
     }
 
+    func presentationMode(for entry: CopiedContent) -> ClipboardEntry.PresentationMode {
+        guard mode == .translation else {
+            return .history
+        }
+        let language = translationLanguageByEntryID[entry.id] ?? entry.translatedTo ?? Locale.current.language
+        return .translationPreview(language: language)
+    }
+
+    func uniqueTargetLanguages(
+        from languages: [Locale.Language],
+        excluding source: Locale.Language
+    ) -> [Locale.Language] {
+        var seen: Set<String> = []
+        let sourceCode = source.languageCode?.identifier
+        var filtered: [Locale.Language] = []
+        for language in languages {
+            let languageCode = language.languageCode?.identifier
+            if languageCode == sourceCode {
+                continue
+            }
+            let key = languageCode ?? language.maximalIdentifier
+            if seen.insert(key).inserted {
+                filtered.append(language)
+            }
+        }
+        return filtered.sorted { lhs, rhs in
+            let lhsLocale = Locale(identifier: lhs.maximalIdentifier)
+            let rhsLocale = Locale(identifier: rhs.maximalIdentifier)
+            let lhsName = lhsLocale.localizedString(forIdentifier: lhs.maximalIdentifier)
+                ?? lhs.maximalIdentifier
+            let rhsName = rhsLocale.localizedString(forIdentifier: rhs.maximalIdentifier)
+                ?? rhs.maximalIdentifier
+            return lhsName.localizedCaseInsensitiveCompare(rhsName) == .orderedAscending
+        }
+    }
+
     func showWindows(presentEmptyAlert: Bool = true, captureLastApp: Bool = true) {
         if captureLastApp {
             if let frontmost = NSWorkspace.shared.frontmostApplication,
@@ -365,6 +455,8 @@ private extension WindowController {
             }
             return
         }
+        mode = .history
+        translationLanguageByEntryID.removeAll()
         updateBaseHistory(history)
         entries = filteredEntries
         if entries.isEmpty && !history.isEmpty {
@@ -382,19 +474,136 @@ private extension WindowController {
         updateToggleMenuTitle()
     }
 
+    @discardableResult
+    func showTranslationWindows(
+        captureLastApp: Bool = true,
+        providedText: String? = nil,
+        keepInputOverlayVisibleUntilResults: Bool = false,
+        suppressAlerts: Bool = false
+    ) async -> Bool {
+        if captureLastApp {
+            if let frontmost = NSWorkspace.shared.frontmostApplication,
+               frontmost.bundleIdentifier != Bundle.main.bundleIdentifier {
+                lastActiveApp = frontmost
+            }
+        }
+        if let aboutWin = aboutWindow {
+            aboutWin.orderOut(nil)
+        }
+        guard await translator.supportsNativeTranslation() else {
+            if !suppressAlerts {
+                presentTranslationUnavailableAlert(
+                    title: "Translation Not Available",
+                    message: "Native macOS Translation is not available on this system."
+                )
+            }
+            return false
+        }
+        let sourceText: String
+        if let providedText {
+            sourceText = providedText
+        } else if let selectedText = await selectedTextForTranslation() {
+            sourceText = selectedText
+        } else {
+            showTranslationInputOverlay()
+            return false
+        }
+        let trimmedSelection = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSelection.isEmpty else {
+            showTranslationInputOverlay()
+            return false
+        }
+        let sourceLanguage = await translator.detectLanguage(for: trimmedSelection) ?? Locale.current.language
+        let installedTargets = await translator.installedTargetLanguages(from: sourceLanguage)
+        let targets = uniqueTargetLanguages(
+            from: installedTargets,
+            excluding: sourceLanguage
+        )
+        guard !targets.isEmpty else {
+            if !suppressAlerts {
+                presentTranslationUnavailableAlert(
+                    title: "No Downloaded Translation Languages",
+                    message: "Install translation languages in System Settings > General > Translation."
+                )
+            }
+            return false
+        }
+        var translatedEntries: [CopiedContent] = []
+        var entryLanguageMap: [UUID: Locale.Language] = [:]
+        for target in targets {
+            do {
+                let translated = try await translator.translate(trimmedSelection, from: sourceLanguage, to: target)
+                var entry = CopiedContent(original: trimmedSelection, contentType: .text)
+                entry.updateRewritten(translated)
+                entry.updateLanguage(target)
+                translatedEntries.append(entry)
+                entryLanguageMap[entry.id] = target
+            } catch {
+                continue
+            }
+        }
+        guard !translatedEntries.isEmpty else {
+            if !suppressAlerts {
+                presentTranslationUnavailableAlert(
+                    title: "Translation Failed",
+                    message: "Could not translate the selected text with the currently downloaded language packs."
+                )
+            }
+            return false
+        }
+        let preserveOverlay = keepInputOverlayVisibleUntilResults && statusOverlayContext.overlayMode == .translationInput
+        closeWindows(
+            hideStatusOverlay: !preserveOverlay,
+            resetOverlayState: !preserveOverlay,
+            stopOverlayLoading: !preserveOverlay
+        )
+        mode = .translation
+        if !preserveOverlay {
+            statusOverlayContext.overlayMode = .history
+            statusOverlayContext.setTranslationInputTextIfNeeded("")
+        }
+        translationLanguageByEntryID = entryLanguageMap
+        searchText = ""
+        statusOverlayContext.setSearchTextIfNeeded("")
+        updateBaseHistory(translatedEntries)
+        entries = filteredEntries
+        windows = entries.map { createWindow(for: $0) }
+        layoutWindows(animated: false)
+        installEventMonitors()
+        DispatchQueue.main.async { [weak self] in
+            NSApp.activate(ignoringOtherApps: true)
+            self?.focusFrontWindow()
+        }
+        finishEntriesUpdate(after: 0.12)
+        updateToggleMenuTitle()
+        return true
+    }
+
     func focusFrontWindow() {
         guard let front = windows.first else { return }
         front.window.makeKeyAndOrderFront(nil)
         front.window.makeFirstResponder(front.host.view)
     }
 
-    func closeWindows() {
+    func closeWindows(
+        hideStatusOverlay: Bool = true,
+        resetOverlayState: Bool = true,
+        stopOverlayLoading: Bool = true
+    ) {
+        translationInputTask?.cancel()
+        translationInputTask = nil
         for (window, _) in windows {
             window.orderOut(nil)
             window.close()
         }
         windows.removeAll()
         entries.removeAll()
+        mode = .history
+        if resetOverlayState {
+            statusOverlayContext.overlayMode = .history
+            statusOverlayContext.setTranslationInputTextIfNeeded("")
+        }
+        translationLanguageByEntryID.removeAll()
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil
@@ -404,8 +613,12 @@ private extension WindowController {
             scrollMonitor = nil
         }
         entriesUpdateResetTask?.cancel()
-        statusOverlayContext.setUpdatingEntries(false)
-        hideStatusOverlayBar()
+        if stopOverlayLoading {
+            statusOverlayContext.setUpdatingEntries(false)
+        }
+        if hideStatusOverlay {
+            hideStatusOverlayBar()
+        }
         updateToggleMenuTitle()
     }
 
@@ -700,23 +913,49 @@ private extension WindowController {
 
     func registerHotKey() {
         let defaults = UserDefaults.standard
-        let storedKeyCode = defaults.object(forKey: HotkeySettings.keyCodeKey) as? Int ?? HotkeySettings.defaultKeyCode
-        let storedModifiers = defaults.object(forKey: HotkeySettings.modifiersKey) as? Int ?? HotkeySettings.defaultModifiers
-        let keyCode = UInt32(storedKeyCode == 0 ? HotkeySettings.defaultKeyCode : storedKeyCode)
-        let modifiers = UInt32(storedModifiers == 0 ? HotkeySettings.defaultModifiers : storedModifiers)
-        KeyboardListener.shared.register(keyCode: keyCode, modifiers: modifiers) { [weak self] in
-            guard let self else {
-                return
+        let storedHistoryKeyCode = defaults.object(forKey: HotkeySettings.keyCodeKey) as? Int ?? HotkeySettings.defaultKeyCode
+        let storedHistoryModifiers = defaults.object(forKey: HotkeySettings.modifiersKey) as? Int ?? HotkeySettings.defaultModifiers
+        let historyKeyCode = UInt32(storedHistoryKeyCode == 0 ? HotkeySettings.defaultKeyCode : storedHistoryKeyCode)
+        let historyModifiers = UInt32(storedHistoryModifiers == 0 ? HotkeySettings.defaultModifiers : storedHistoryModifiers)
+        let storedTranslationKeyCode = defaults.object(forKey: HotkeySettings.translationKeyCodeKey) as? Int ?? HotkeySettings.defaultTranslationKeyCode
+        let storedTranslationModifiers = defaults.object(forKey: HotkeySettings.translationModifiersKey) as? Int ?? HotkeySettings.defaultTranslationModifiers
+        let translationKeyCode = UInt32(storedTranslationKeyCode == 0 ? HotkeySettings.defaultTranslationKeyCode : storedTranslationKeyCode)
+        let translationModifiers = UInt32(storedTranslationModifiers == 0 ? HotkeySettings.defaultTranslationModifiers : storedTranslationModifiers)
+
+        KeyboardListener.shared.registerAll([
+            .init(id: HotKeyID.history, keyCode: historyKeyCode, modifiers: historyModifiers) { [weak self] in
+                guard let self else { return }
+                if self.showingWindows && self.mode == .history {
+                    self.closeWindows()
+                } else {
+                    self.showWindows()
+                }
+            },
+            .init(id: HotKeyID.translation, keyCode: translationKeyCode, modifiers: translationModifiers) { [weak self] in
+                guard let self else { return }
+                if self.showingWindows {
+                    self.closeWindows()
+                } else {
+                    Task { @MainActor in
+                        await self.showTranslationWindows()
+                    }
+                }
             }
-            if self.windows.contains(where: { $0.window.isVisible }) {
-                self.closeWindows()
-            } else {
-                self.showWindows()
-            }
-        }
+        ])
     }
     
     func handleEntryUpdate(id: UUID, text: String, language: Locale.Language?) {
+        if mode == .translation {
+            if let index = entries.firstIndex(where: { $0.id == id }) {
+                entries[index].updateRewritten(text)
+                entries[index].updateLanguage(language)
+            }
+            if let index = baseHistory.firstIndex(where: { $0.id == id }) {
+                baseHistory[index].updateRewritten(text)
+                baseHistory[index].updateLanguage(language)
+            }
+            return
+        }
         clipboard.updateRewritten(for: id, value: text, language: language)
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].updateRewritten(text)
@@ -730,6 +969,9 @@ private extension WindowController {
     }
 
     func handlePinnedStateChanged(_ notification: Notification) {
+        guard mode == .history else {
+            return
+        }
         guard let id = notification.object as? UUID else {
             refreshEntriesAfterPinToggle()
             return
@@ -747,6 +989,7 @@ private extension WindowController {
     }
 
     func refreshEntriesAfterPinToggle() {
+        guard mode == .history else { return }
         guard showingWindows else { return }
         beginEntriesUpdate()
         defer { finishEntriesUpdate() }
@@ -783,7 +1026,8 @@ private extension WindowController {
                             },
                             onPaste: pasteFrontMost,
                             onCopy: handleCopyEntry,
-                            languageContext: languageContext
+                            languageContext: languageContext,
+                            presentationMode: presentationMode(for: updatedEntry)
                         ).environment(\.translator, translator)
                     )
                     pair.host.rootView = newView
@@ -794,6 +1038,7 @@ private extension WindowController {
     }
 
     func refreshEntriesPreservingFrontmost(frontID: UUID) {
+        guard mode == .history else { return }
         guard showingWindows else { return }
         beginEntriesUpdate()
         defer { finishEntriesUpdate() }
@@ -844,7 +1089,7 @@ private extension WindowController {
 
     func createWindow(for entry: CopiedContent) -> (NSWindow, NSHostingController<AnyView>) {
         let pinnedCount = clipboard.history.filter { $0.isPinned }.count
-        let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned
+        let canPin = mode == .history && (isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned)
         let entryView = AnyView(
             ClipboardEntry(
                 entry: entry,
@@ -855,7 +1100,8 @@ private extension WindowController {
                 },
                 onPaste: pasteFrontMost,
                 onCopy: handleCopyEntry,
-                languageContext: languageContext
+                languageContext: languageContext,
+                presentationMode: presentationMode(for: entry)
             ).environment(\.translator, translator)
         )
         let hostingController = NSHostingController(rootView: entryView)
@@ -935,7 +1181,7 @@ private extension WindowController {
 
     func layoutWindows(animated: Bool) {
         guard !windows.isEmpty, windows.count == entries.count else {
-            if windows.isEmpty {
+            if windows.isEmpty, mode == .history {
                 statusOverlayContext.update(index: 0, total: entries.count)
                 let (overlayWindow, _) = statusOverlayComponents()
                 let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.frame ?? .zero
@@ -966,6 +1212,8 @@ private extension WindowController {
                 } else {
                     overlayWindow.makeKeyAndOrderFront(nil)
                 }
+            } else if windows.isEmpty {
+                hideStatusOverlayBar()
             }
             return
         }
@@ -999,19 +1247,28 @@ private extension WindowController {
         var updates: [(window: NSWindow, host: NSHostingController<AnyView>, frame: NSRect, alpha: CGFloat, entry: CopiedContent, isFront: Bool)] = []
         var frontFrame: NSRect?
         var frontWindowReference: NSWindow?
-        func recordUpdate(window: NSWindow, host: NSHostingController<AnyView>, entry: CopiedContent, depth: Int, offsetY: CGFloat, isFront: Bool) {
+        let isHorizontalLayout = mode == .translation
+        func recordUpdate(
+            window: NSWindow,
+            host: NSHostingController<AnyView>,
+            entry: CopiedContent,
+            depth: Int,
+            offsetX: CGFloat,
+            offsetY: CGFloat,
+            isFront: Bool
+        ) {
             let scale = max(1.0 - CGFloat(depth) * scaleStep, 0.3)
             let opacity = depth > 3 ? 0.0 : 1.0 - CGFloat(depth) * opacityStep
             let windowSize = NSSize(width: windowSize.width * scale, height: windowSize.height * scale)
             let origin = NSPoint(
-                x: centerPoint.x - windowSize.width / 2,
+                x: centerPoint.x - windowSize.width / 2 + offsetX,
                 y: centerPoint.y - windowSize.height / 2 + offsetY
             )
             let frame = NSRect(origin: origin, size: windowSize)
             window.contentMinSize = windowSize
             window.contentMaxSize = windowSize
             let pinnedCount = clipboard.history.filter { $0.isPinned }.count
-            let canPin = isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned
+            let canPin = mode == .history && (isUnlocked || pinnedCount < defaultMaxPinnedEntries || entry.isPinned)
             host.rootView = AnyView(
                 ClipboardEntry(entry: entry,
                                isFrontMost: isFront,
@@ -1023,7 +1280,8 @@ private extension WindowController {
                                },
                                onPaste: pasteFrontMost,
                                onCopy: handleCopyEntry,
-                               languageContext: languageContext)
+                               languageContext: languageContext,
+                               presentationMode: presentationMode(for: entry))
                 .environment(\.translator, translator)
             )
             if let tintView = window.contentView?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("tint") }) {
@@ -1036,19 +1294,53 @@ private extension WindowController {
         }
         if let (frontWindow, frontHost) = windows.first {
             frontWindowReference = frontWindow
-            recordUpdate(window: frontWindow, host: frontHost, entry: frontEntry, depth: 0, offsetY: 0, isFront: true)
+            recordUpdate(
+                window: frontWindow,
+                host: frontHost,
+                entry: frontEntry,
+                depth: 0,
+                offsetX: 0,
+                offsetY: 0,
+                isFront: true
+            )
         }
-        var belowOffset: CGFloat = 0
+        var belowOffsetX: CGFloat = 0
+        var belowOffsetY: CGFloat = 0
         for (position, element) in belowStack.enumerated() {
             let multiplier = position == 0 ? 1.0 : pow(offsetDecay, CGFloat(position))
-            belowOffset -= CGFloat(offsetStep) * multiplier
-            recordUpdate(window: element.window, host: element.host, entry: element.entry, depth: position + 1, offsetY: belowOffset, isFront: false)
+            if isHorizontalLayout {
+                belowOffsetX += CGFloat(offsetStep) * multiplier
+            } else {
+                belowOffsetY -= CGFloat(offsetStep) * multiplier
+            }
+            recordUpdate(
+                window: element.window,
+                host: element.host,
+                entry: element.entry,
+                depth: position + 1,
+                offsetX: belowOffsetX,
+                offsetY: belowOffsetY,
+                isFront: false
+            )
         }
-        var aboveOffset: CGFloat = 0
+        var aboveOffsetX: CGFloat = 0
+        var aboveOffsetY: CGFloat = 0
         for (position, element) in aboveStack.enumerated() {
             let multiplier = position == 0 ? 1.0 : pow(offsetDecay, CGFloat(position))
-            aboveOffset += CGFloat(offsetStep) * multiplier
-            recordUpdate(window: element.window, host: element.host, entry: element.entry, depth: position + 1, offsetY: aboveOffset, isFront: false)
+            if isHorizontalLayout {
+                aboveOffsetX -= CGFloat(offsetStep) * multiplier
+            } else {
+                aboveOffsetY += CGFloat(offsetStep) * multiplier
+            }
+            recordUpdate(
+                window: element.window,
+                host: element.host,
+                entry: element.entry,
+                depth: position + 1,
+                offsetX: aboveOffsetX,
+                offsetY: aboveOffsetY,
+                isFront: false
+            )
         }
         if animated {
             NSAnimationContext.runAnimationGroup { context in
@@ -1067,7 +1359,8 @@ private extension WindowController {
                 update.window.alphaValue = update.alpha
             }
         }
-        if let frame = frontFrame,
+        if mode == .history,
+           let frame = frontFrame,
            let reference = frontWindowReference {
             lastFrontFrame = frame
             updateStatusOverlayBar(frontFrame: frame,
@@ -1076,6 +1369,11 @@ private extension WindowController {
                                    frontIndex: frontIndex,
                                    totalCount: entries.count,
                                    animated: animated)
+        } else if statusOverlayContext.overlayMode == .translationInput {
+            if let overlay = statusOverlayBar,
+               let reference = frontWindowReference {
+                overlay.order(.above, relativeTo: reference.windowNumber)
+            }
         } else {
             hideStatusOverlayBar()
         }
@@ -1117,6 +1415,17 @@ private extension WindowController {
                 onWrapToFirst: { [weak self] in
                     self?.wrapToFirstEntry()
                 },
+                onSubmitTranslationInput: { [weak self] input in
+                    self?.submitTranslationInput(input)
+                },
+                onCancelTranslationInput: { [weak self] in
+                    self?.translationInputTask?.cancel()
+                    self?.translationInputTask = nil
+                    self?.finishEntriesUpdate()
+                    self?.statusOverlayContext.overlayMode = .history
+                    self?.statusOverlayContext.setTranslationInputTextIfNeeded("")
+                    self?.hideStatusOverlayBar()
+                },
                 context: statusOverlayContext
             )
         )
@@ -1153,6 +1462,84 @@ private extension WindowController {
         statusOverlayBar = panel
         statusOverlayHostingController = host
         return (panel, host)
+    }
+
+    func showTranslationInputOverlay(prefillText: String = "") {
+        statusOverlayContext.overlayMode = .translationInput
+        statusOverlayContext.setTranslationInputTextIfNeeded(prefillText)
+        let (window, host) = statusOverlayComponents()
+        let frame = historyOverlayReferenceFrame()
+        window.setFrame(frame, display: true)
+        window.alphaValue = 0
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(host.view)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            window.animator().alphaValue = 1
+        }
+        DispatchQueue.main.async {
+            window.makeFirstResponder(host.view)
+            NotificationCenter.default.post(name: .translationInputRequested, object: nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            window.makeFirstResponder(host.view)
+            NotificationCenter.default.post(name: .translationInputRequested, object: nil)
+        }
+    }
+
+    func submitTranslationInput(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return
+        }
+        beginEntriesUpdate()
+        translationInputTask?.cancel()
+        translationInputTask = nil
+        Task { @MainActor in
+            let didTranslate = await self.showTranslationWindows(
+                captureLastApp: false,
+                providedText: trimmed,
+                keepInputOverlayVisibleUntilResults: true
+            )
+            if !didTranslate {
+                self.finishEntriesUpdate()
+            }
+        }
+    }
+
+    func historyOverlayReferenceFrame() -> NSRect {
+        if let existingOverlay = statusOverlayBar {
+            return existingOverlay.frame
+        }
+        let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? .zero
+        let horizontalPadding: CGFloat = 16
+        if let anchor = lastFrontFrame {
+            var origin = NSPoint(
+                x: anchor.midX - CGFloat(statusOverlayWidth) / 2,
+                y: anchor.maxY + 40
+            )
+            origin.x = min(
+                max(origin.x, screenFrame.minX + horizontalPadding),
+                screenFrame.maxX - CGFloat(statusOverlayWidth) - horizontalPadding
+            )
+            origin.y = min(
+                origin.y,
+                screenFrame.maxY - CGFloat(statusOverlayHeight) - horizontalPadding
+            )
+            return NSRect(
+                origin: origin,
+                size: NSSize(width: statusOverlayWidth, height: statusOverlayHeight)
+            )
+        }
+        let fallbackOrigin = NSPoint(
+            x: screenFrame.midX - CGFloat(statusOverlayWidth) / 2,
+            y: screenFrame.maxY - CGFloat(statusOverlayHeight) - 80
+        )
+        return NSRect(
+            origin: fallbackOrigin,
+            size: NSSize(width: statusOverlayWidth, height: statusOverlayHeight)
+        )
     }
 
     func updateStatusOverlayBar(
@@ -1242,18 +1629,32 @@ private extension WindowController {
                 self.pasteFrontMost()
                 return nil
             case UInt16(kVK_UpArrow):
-                if event.modifierFlags.contains(.command) {
-                    NotificationCenter.default.post(name: .wrapToFirstEntryRequested,
-                                                    object: nil)
-                } else {
-                    self.rotateWheel(direction: .newer)
+                if self.mode == .history {
+                    if event.modifierFlags.contains(.command) {
+                        NotificationCenter.default.post(name: .wrapToFirstEntryRequested,
+                                                        object: nil)
+                    } else {
+                        self.rotateWheel(direction: .newer)
+                    }
+                    return nil
                 }
-                return nil
             case UInt16(kVK_DownArrow):
-                self.rotateWheel(direction: .older)
-                return nil
+                if self.mode == .history {
+                    self.rotateWheel(direction: .older)
+                    return nil
+                }
+            case UInt16(kVK_LeftArrow):
+                if self.mode == .translation {
+                    self.rotateWheel(direction: .newer)
+                    return nil
+                }
+            case UInt16(kVK_RightArrow):
+                if self.mode == .translation {
+                    self.rotateWheel(direction: .older)
+                    return nil
+                }
             case UInt16(kVK_Delete):
-                if event.modifierFlags.contains(.command) {
+                if event.modifierFlags.contains(.command), self.mode == .history {
                     self.deleteFrontEntry()
                     return nil
                 }
@@ -1268,7 +1669,7 @@ private extension WindowController {
                     return nil
                 }
             case UInt16(kVK_ANSI_R):
-                if event.modifierFlags.contains(.command) {
+                if event.modifierFlags.contains(.command), self.mode == .history {
                     self.rewriteFrontMost()
                     return nil
                 }
@@ -1278,7 +1679,7 @@ private extension WindowController {
                     return nil
                 }
             case UInt16(kVK_ANSI_P):
-                if event.modifierFlags.contains(.command) {
+                if event.modifierFlags.contains(.command), self.mode == .history {
                     if event.modifierFlags.contains(.shift) {
                         togglePinFilter()
                     } else {
@@ -1334,6 +1735,9 @@ private extension WindowController {
     }
 
     func rewriteFrontMost() {
+        guard mode == .history else {
+            return
+        }
         guard let frontEntry = entries.first else {
             return
         }
@@ -1342,6 +1746,9 @@ private extension WindowController {
     }
     
     func toggleFrontMostPinned() {
+        guard mode == .history else {
+            return
+        }
         guard let frontEntry = entries.first else {
             return
         }
@@ -1361,11 +1768,14 @@ private extension WindowController {
     }
     
     func togglePinFilter() {
+        guard mode == .history else {
+            return
+        }
         statusOverlayContext.filterPinned.toggle()
     }
     
     func focusSearchBar() {
-        guard showingWindows else {
+        guard showingWindows, mode == .history else {
             return
         }
         _ = statusOverlayComponents()
@@ -1428,8 +1838,49 @@ private extension WindowController {
         }
         updateToggleMenuTitle()
     }
+
+    func handleTranslationInputTyping(_ newValue: String) {
+        guard statusOverlayContext.overlayMode == .translationInput else {
+            return
+        }
+        translationInputTask?.cancel()
+        translationInputTask = nil
+        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            finishEntriesUpdate()
+            return
+        }
+        beginEntriesUpdate()
+    }
+
+    func handleDebouncedTranslationInput(_ newValue: String) {
+        guard statusOverlayContext.overlayMode == .translationInput else {
+            return
+        }
+        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            finishEntriesUpdate()
+            return
+        }
+        translationInputTask?.cancel()
+        translationInputTask = Task { [weak self] in
+            guard let self else { return }
+            let didTranslate = await self.showTranslationWindows(
+                captureLastApp: false,
+                providedText: trimmed,
+                keepInputOverlayVisibleUntilResults: true,
+                suppressAlerts: true
+            )
+            if !didTranslate {
+                self.finishEntriesUpdate()
+            }
+        }
+    }
     
     func handleFilterChange(_ filterPinned: Bool, _ filterType: CopiedContentType?) {
+        guard mode == .history else {
+            return
+        }
         guard statusOverlayContext.filterPinned == filterPinned &&
                 statusOverlayContext.filterType == filterType else {
             return
@@ -1505,7 +1956,7 @@ private extension WindowController {
         }
     }
 
-    private func ensureAccessibilityPermissionForPaste() -> Bool {
+    private func ensureAccessibilityPermission() -> Bool {
         if AXIsProcessTrusted() {
             return true
         }
@@ -1524,8 +1975,8 @@ private extension WindowController {
 
     private func showAccessibilityAlert() {
         let alert = NSAlert()
-        alert.messageText = "Enable Accessibility to Paste"
-        alert.informativeText = "Better Clipboard needs Accessibility permission to paste into other apps. Open System Settings and enable Better Clipboard in Privacy & Security > Accessibility."
+        alert.messageText = "Enable Accessibility"
+        alert.informativeText = "Better Clipboard needs Accessibility permission to read selected text and paste into other apps. Open System Settings and enable Better Clipboard in Privacy & Security > Accessibility."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Not Now")
@@ -1544,7 +1995,7 @@ private extension WindowController {
         if lastApp.bundleIdentifier == Bundle.main.bundleIdentifier {
             return
         }
-        guard ensureAccessibilityPermissionForPaste() else {
+        guard ensureAccessibilityPermission() else {
             activateAppForPaste(lastApp)
             return
         }
@@ -1574,6 +2025,233 @@ private extension WindowController {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) {
             attemptPaste(remaining: maxAttempts)
+        }
+    }
+
+    func selectedTextForTranslation() async -> String? {
+        if let selected = selectedTextFromFocusedElement() {
+            return selected
+        }
+        return await selectedTextByCopyProbe()
+    }
+
+    func selectedTextFromFocusedElement() -> String? {
+        guard ensureAccessibilityPermission() else {
+            return nil
+        }
+        if let frontmost = NSWorkspace.shared.frontmostApplication {
+            let appElement = AXUIElementCreateApplication(frontmost.processIdentifier)
+            if let focusedInApp = focusedElement(in: appElement),
+               let selected = selectedText(from: focusedInApp) {
+                return selected
+            }
+        }
+        let systemWide = AXUIElementCreateSystemWide()
+        if let focusedSystemWide = focusedElement(in: systemWide),
+           let selected = selectedText(from: focusedSystemWide) {
+            return selected
+        }
+        return nil
+    }
+
+    func selectedTextByCopyProbe() async -> String? {
+        guard ensureAccessibilityPermission() else {
+            return nil
+        }
+        guard let frontmost = NSWorkspace.shared.frontmostApplication,
+              frontmost.bundleIdentifier != Bundle.main.bundleIdentifier else {
+            return nil
+        }
+        let pasteboard = NSPasteboard.general
+        let snapshot = capturePasteboardSnapshot(from: pasteboard)
+        let initialChangeCount = pasteboard.changeCount
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let keyCDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_C), keyDown: true)
+        let keyCUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_C), keyDown: false)
+        keyCDown?.flags = .maskCommand
+        keyCUp?.flags = .maskCommand
+        let tap = CGEventTapLocation.cghidEventTap
+        keyCDown?.post(tap: tap)
+        keyCUp?.post(tap: tap)
+
+        var didChangePasteboard = false
+        for _ in 0..<14 {
+            try? await Task.sleep(for: .milliseconds(35))
+            if pasteboard.changeCount != initialChangeCount {
+                didChangePasteboard = true
+                break
+            }
+        }
+        guard didChangePasteboard else {
+            return nil
+        }
+
+        let copiedContent = clipboardContent(from: pasteboard)
+        clipboard.suppressPasteboardChange(pasteboard.changeCount, content: copiedContent)
+        let copiedText = readText(from: pasteboard)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        restorePasteboardSnapshot(snapshot, to: pasteboard)
+        clipboard.suppressPasteboardChange(
+            pasteboard.changeCount,
+            content: snapshot.primaryContent
+        )
+
+        guard let copiedText, copiedText.isEmpty == false else {
+            return nil
+        }
+        return copiedText
+    }
+
+    private func capturePasteboardSnapshot(from pasteboard: NSPasteboard) -> PasteboardSnapshot {
+        let serializedItems: [[NSPasteboard.PasteboardType: Data]] = (pasteboard.pasteboardItems ?? []).map { item in
+            var values: [NSPasteboard.PasteboardType: Data] = [:]
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    values[type] = data
+                }
+            }
+            return values
+        }
+        return PasteboardSnapshot(
+            items: serializedItems,
+            primaryContent: clipboardContent(from: pasteboard)
+        )
+    }
+
+    private func restorePasteboardSnapshot(_ snapshot: PasteboardSnapshot, to pasteboard: NSPasteboard) {
+        pasteboard.clearContents()
+        guard !snapshot.items.isEmpty else {
+            return
+        }
+        let restoredItems: [NSPasteboardItem] = snapshot.items.map { itemData in
+            let item = NSPasteboardItem()
+            for (type, data) in itemData {
+                item.setData(data, forType: type)
+            }
+            return item
+        }
+        pasteboard.writeObjects(restoredItems)
+    }
+
+    func clipboardContent(from pasteboard: NSPasteboard) -> ClipboardContent {
+        if let text = readText(from: pasteboard), text.isEmpty == false {
+            return .text(text)
+        }
+        if let imageData = pasteboard.data(forType: .tiff) ?? pasteboard.data(forType: .png) {
+            return .image(imageData)
+        }
+        return .text("")
+    }
+
+    func readText(from pasteboard: NSPasteboard) -> String? {
+        if let plain = pasteboard.string(forType: .string), plain.isEmpty == false {
+            return plain
+        }
+        if let rtfData = pasteboard.data(forType: .rtf),
+           let attributed = NSAttributedString(rtf: rtfData, documentAttributes: nil),
+           attributed.string.isEmpty == false {
+            return attributed.string
+        }
+        if let rtfdData = pasteboard.data(forType: .rtfd),
+           let attributed = NSAttributedString(rtfd: rtfdData, documentAttributes: nil),
+           attributed.string.isEmpty == false {
+            return attributed.string
+        }
+        if let attributedStrings = pasteboard.readObjects(forClasses: [NSAttributedString.self]) as? [NSAttributedString],
+           let first = attributedStrings.first,
+           first.string.isEmpty == false {
+            return first.string
+        }
+        return nil
+    }
+
+    func focusedElement(in root: AXUIElement) -> AXUIElement? {
+        var focusedElementValue: CFTypeRef?
+        let focusedElementStatus = AXUIElementCopyAttributeValue(
+            root,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedElementValue
+        )
+        guard focusedElementStatus == .success,
+              let focusedElementValue,
+              CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        return (focusedElementValue as! AXUIElement)
+    }
+
+    func selectedText(from element: AXUIElement) -> String? {
+        if let direct = readSelectedTextAttribute(from: element),
+           direct.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return direct
+        }
+        if let byRange = readSelectedTextFromRange(from: element),
+           byRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return byRange
+        }
+        return nil
+    }
+
+    func readSelectedTextAttribute(from element: AXUIElement) -> String? {
+        var selectedTextValue: CFTypeRef?
+        let selectedTextStatus = AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextAttribute as CFString,
+            &selectedTextValue
+        )
+        guard selectedTextStatus == .success else {
+            return nil
+        }
+        if let selected = selectedTextValue as? String {
+            return selected
+        }
+        if let attributed = selectedTextValue as? NSAttributedString {
+            return attributed.string
+        }
+        return nil
+    }
+
+    func readSelectedTextFromRange(from element: AXUIElement) -> String? {
+        var selectedRangeValue: CFTypeRef?
+        let selectedRangeStatus = AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            &selectedRangeValue
+        )
+        guard selectedRangeStatus == .success,
+              let selectedRangeValue else {
+            return nil
+        }
+        var rangedTextValue: CFTypeRef?
+        let rangedTextStatus = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            kAXStringForRangeParameterizedAttribute as CFString,
+            selectedRangeValue,
+            &rangedTextValue
+        )
+        guard rangedTextStatus == .success else {
+            return nil
+        }
+        if let selected = rangedTextValue as? String {
+            return selected
+        }
+        if let attributed = rangedTextValue as? NSAttributedString {
+            return attributed.string
+        }
+        return nil
+    }
+
+    func presentTranslationUnavailableAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
         }
     }
     

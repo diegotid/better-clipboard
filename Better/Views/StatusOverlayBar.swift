@@ -10,6 +10,8 @@ import SwiftUI
 struct StatusOverlayBar: View {
     var width: Int
     var onWrapToFirst: () -> Void = {}
+    var onSubmitTranslationInput: (String) -> Void = { _ in }
+    var onCancelTranslationInput: () -> Void = {}
     @ObservedObject var context: StatusOverlayContext
     
     @AppStorage("maxHistoryEntries")
@@ -27,20 +29,24 @@ struct StatusOverlayBar: View {
         context.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
 
+    private var isTranslationInputMode: Bool {
+        context.overlayMode == .translationInput
+    }
+
     private var shouldShowWrapButton: Bool {
-        !isSearching && context.totalCount > 1 && context.currentIndex > 1
+        !isSearching && !isTranslationInputMode && context.totalCount > 1 && context.currentIndex > 1
     }
 
     var body: some View {
         HStack {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: isTranslationInputMode ? "translate" : "magnifyingglass")
                 .font(.system(size: 22, weight: .light))
                 .foregroundStyle(.secondary)
                 .padding(.leading, -4)
             TextField(
-                "Search",
-                text: $context.searchText,
-                prompt: Text("Search")
+                isTranslationInputMode ? "Text to translate" : "Search",
+                text: isTranslationInputMode ? $context.translationInputText : $context.searchText,
+                prompt: Text(isTranslationInputMode ? "Text to translate" : "Search")
                     .font(.system(size: 21, weight: .light))
                     .foregroundStyle(.secondary)
             )
@@ -52,6 +58,11 @@ struct StatusOverlayBar: View {
             .focused($searchFieldFocused)
             .focusable(false)
             .onKeyPress(.escape) {
+                if isTranslationInputMode {
+                    context.translationInputText = ""
+                    onCancelTranslationInput()
+                    return .handled
+                }
                 if isSearching {
                     context.searchText = ""
                     searchFieldFocused = false
@@ -59,8 +70,41 @@ struct StatusOverlayBar: View {
                 }
                 return .ignored
             }
+            .onSubmit {
+                guard isTranslationInputMode else {
+                    return
+                }
+                let trimmed = context.translationInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else {
+                    return
+                }
+                onSubmitTranslationInput(trimmed)
+            }
             Spacer()
-            if isSearching {
+            if isTranslationInputMode {
+                Button {
+                    let trimmed = context.translationInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    onSubmitTranslationInput(trimmed)
+                } label: {
+                    Text("Translate")
+                        .font(.headline.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .help("Translate typed text")
+                .padding(.trailing, 8)
+                Button {
+                    context.translationInputText = ""
+                    onCancelTranslationInput()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 22, weight: .light))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 4)
+                .help("Close")
+            } else if isSearching {
                 if context.totalCount == 0 {
                     Text("No results")
                         .font(.headline.weight(.semibold))
@@ -98,7 +142,9 @@ struct StatusOverlayBar: View {
                 }
                 .padding(.trailing, 6)
             }
-            toggleFilterButton()
+            if !isTranslationInputMode {
+                toggleFilterButton()
+            }
         }
         .padding(.leading, 20)
         .padding(.trailing, 9)
@@ -111,15 +157,23 @@ struct StatusOverlayBar: View {
             glowBorder
         }
         .onAppear {
-            searchFieldFocused = false
+            if isTranslationInputMode {
+                requestFieldFocus()
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 hasAppeared = true
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .searchEntriesRequested)) { _ in
+            guard !isTranslationInputMode else {
+                return
+            }
             if hasAppeared {
                 searchFieldFocused = true
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .translationInputRequested)) { _ in
+            requestFieldFocus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .wrapToFirstEntryRequested)) { _ in
             guard shouldShowWrapButton else {
@@ -134,6 +188,16 @@ struct StatusOverlayBar: View {
             .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
             .padding(1)
             .allowsHitTesting(false)
+    }
+
+    func requestFieldFocus() {
+        searchFieldFocused = true
+        DispatchQueue.main.async {
+            searchFieldFocused = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            searchFieldFocused = true
+        }
     }
 
     @ViewBuilder

@@ -8,12 +8,19 @@
 import Combine
 
 final class StatusOverlayContext: ObservableObject {
+    enum OverlayMode {
+        case history
+        case translationInput
+    }
+
     @Published var currentIndex: Int = 1
     @Published var totalCount: Int = 1
     @Published var searchText: String = ""
+    @Published var translationInputText: String = ""
     @Published var isUpdatingEntries: Bool = false
     @Published var filterPinned: Bool = false
     @Published var filterType: CopiedContentType? = nil
+    @Published var overlayMode: OverlayMode = .history
     
     var filtered: Bool {
         filterPinned || filterType != nil
@@ -31,6 +38,12 @@ final class StatusOverlayContext: ObservableObject {
     func setSearchTextIfNeeded(_ value: String) {
         if searchText != value {
             searchText = value
+        }
+    }
+
+    func setTranslationInputTextIfNeeded(_ value: String) {
+        if translationInputText != value {
+            translationInputText = value
         }
     }
 

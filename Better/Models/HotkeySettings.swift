@@ -13,6 +13,10 @@ enum HotkeySettings {
     static let modifiersKey = "historyHotKeyModifiers"
     static let defaultKeyCode = Int(kVK_ANSI_V)
     static let defaultModifiers = Int(cmdKey | shiftKey)
+    static let translationKeyCodeKey = "translationHotKeyCode"
+    static let translationModifiersKey = "translationHotKeyModifiers"
+    static let defaultTranslationKeyCode = Int(kVK_ANSI_T)
+    static let defaultTranslationModifiers = Int(cmdKey | optionKey)
 
     static func displayString(keyCode: Int, modifiers: Int) -> String {
         let symbols: [(UInt32, String)] = [

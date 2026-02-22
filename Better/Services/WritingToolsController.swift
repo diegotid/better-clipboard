@@ -16,6 +16,7 @@ extension Notification.Name {
     static let toggleEntryPinnedRequested = Notification.Name("toggleEntryPinnedRequested")
     static let entryPinnedStateChanged = Notification.Name("entryPinnedStateChanged")
     static let searchEntriesRequested = Notification.Name("searchEntriesRequested")
+    static let translationInputRequested = Notification.Name("translationInputRequested")
     static let translationRequested = Notification.Name("translationRequested")
     static let restorePurchasesRequested = Notification.Name("restorePurchasesRequested")
     static let openSettingsRequested = Notification.Name("openSettingsRequested")
