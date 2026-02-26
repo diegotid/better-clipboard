@@ -574,43 +574,44 @@ struct ClipboardEntry: View {
                     .keyboardShortcut("u", modifiers: .command)
                     .help("Back to the original copy")
                 }
-                if !isImage && !isLink && !isCode && !isEmoji && entry.original == editedText {
-                    Button(action: {
-                        writingToolsController.showWritingToolsPanel()
-                    }) {
-                        HStack {
-                            shortcut(mods: ["command"], key: "R")
-                            Text("Rewrite")
-                                .font(.body)
-                            Image(systemName: "sparkles")
-                                .font(.subheadline)
-                                .foregroundStyle(.primary)
-                                .padding(.trailing, 8)
-                        }
-                        .buttonPillStyle()
-                    }
-                    .keyboardShortcut("r", modifiers: .command)
-                    .help("Rewrite this copy")
-                }
-                if isLink {
-                    Button(action: {
-                        if let url = linkDestination() {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }) {
-                        HStack {
-                            shortcut(mods: ["command"], key: "W")
-                            Text("Follow link")
-                                .font(.body)
-                                .padding(.trailing, 8)
-                        }
-                        .buttonPillStyle()
-                    }
-                    .keyboardShortcut("w", modifiers: .command)
-                    .help("Follow this link")
-                }
             } else {
                 Spacer()
+            }
+            if !isImage && !isLink && !isCode && !isEmoji
+                && (entry.original == editedText || isTranslationPreviewMode) {
+                Button(action: {
+                    writingToolsController.showWritingToolsPanel()
+                }) {
+                    HStack {
+                        shortcut(mods: ["command"], key: "R")
+                        Text("Rewrite")
+                            .font(.body)
+                        Image(systemName: "sparkles")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .padding(.trailing, 8)
+                    }
+                    .buttonPillStyle()
+                }
+                .keyboardShortcut("r", modifiers: .command)
+                .help("Rewrite this copy")
+            }
+            if !isTranslationPreviewMode && isLink {
+                Button(action: {
+                    if let url = linkDestination() {
+                        NSWorkspace.shared.open(url)
+                    }
+                }) {
+                    HStack {
+                        shortcut(mods: ["command"], key: "W")
+                        Text("Follow link")
+                            .font(.body)
+                            .padding(.trailing, 8)
+                    }
+                    .buttonPillStyle()
+                }
+                .keyboardShortcut("w", modifiers: .command)
+                .help("Follow this link")
             }
             if !isImage && (isCode || isTranslationPreviewMode || entry.original != editedText) {
                 Button(action: {
@@ -644,7 +645,7 @@ struct ClipboardEntry: View {
                 .keyboardShortcut("c", modifiers: .command)
                 .help("Copy rewritten text to the clipboard")
             }
-            if isImage {
+            if !isTranslationPreviewMode && isImage {
                 Button(action: {
                     if let imageData = entry.imageData {
                         let pasteboard = NSPasteboard.general
