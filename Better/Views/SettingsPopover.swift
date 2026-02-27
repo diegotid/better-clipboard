@@ -47,117 +47,146 @@ struct SettingsPopover: View {
     
     var body: some View {
         Form {
-            VStack(alignment: .leading) {
-                Section {
-                    Toggle(isOn: Binding(get: {
-                        launchAtLogin
-                    }, set: { newValue in
-                        toggleLaunchAtLogin(newValue)
-                    })) {
-                        Text("Launch at login")
-                    }
-                    .padding(.top, 7)
-                    .disabled(isProcessing)
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .foregroundStyle(.red)
-                            .font(.footnote)
-                    }
-                } header: {
-                    Text("General")
-                        .bold()
-                } footer: {
-                    Text("Start Better Clipboard automatically when you log in")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Divider()
-                    .padding(.vertical, 14)
-                Section {
-                    HStack {
-                        Text("Translate shortcut")
-                        Spacer()
-                        HotkeyCaptureField(display: $translationHotkeyDisplay) { keyCode, modifiers in
-                            translationHotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
-                            UserDefaults.standard.set(keyCode, forKey: HotkeySettings.translationKeyCodeKey)
-                            UserDefaults.standard.set(modifiers, forKey: HotkeySettings.translationModifiersKey)
-                            NotificationCenter.default.post(name: .translationHotKeyChanged, object: nil)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading) {
+                    Section {
+                        HStack {
+                            Text("Content type")
+                            Spacer()
+                            Text("When disabled")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.trailing, 6)
                         }
-                    }
-                    .padding(.top, 2)
-                    Text("Click to change the shortcut. Avoid conflicts with system shortcuts.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if !isTranslationAvailable {
-                        Text("Translation requires macOS 26 and a supported Mac.")
+                        ForEach(CopiedContentType.allCases, id: \.self) { type in
+                            Toggle(isOn: Binding(
+                                get: {
+                                    enabledContentTypes.contains(type)
+                                },
+                                set: { isOn in
+                                    if isOn {
+                                        enabledContentTypes.insert(type)
+                                    } else {
+                                        enabledContentTypes.remove(type)
+                                    }
+                                })
+                            ) {
+                                HStack {
+                                    Image(systemName: type.symbolName)
+                                        .frame(width: 22, alignment: .center)
+                                    Text(String(describing: type).capitalized)
+                                        .frame(minWidth: 54, alignment: .leading)
+                                    Spacer()
+                                    Text(caption(for: type))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.trailing, 6)
+                                        .opacity(type == .text ? 1.0 : 0.6)
+                                }
+                            }
+                            .disabled(type == .text)
+                        }
+                    } header: {
+                        Text("Saved Content")
+                            .bold()
+                            .padding(.bottom, 9)
+                    } footer: {
+                        Text("Choose which types of content are saved to your clipboard history.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                } header: {
-                    Text("Translation")
-                        .bold()
-                        .padding(.bottom, 9)
-                }
-                .disabled(!isTranslationAvailable)
-                .opacity(isTranslationAvailable ? 1.0 : 0.6)
-                Divider()
-                    .padding(.vertical, 14)
-                Section {
-                    HStack {
-                        Text("Content type")
-                        Spacer()
-                        Text("When disabled")
+                    Section {
+                        VStack(alignment: .leading) {
+                            HStack {
+                                Text("Maximum items")
+                                Spacer()
+                                TextField("", value: $maxHistoryInput, format: .number)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 72)
+                                    .multilineTextAlignment(.trailing)
+                                    .focused($historyFieldFocused)
+                                    .onSubmit {
+                                        handleMaxHistoryChange(maxHistoryInput)
+                                    }
+                                    .disabled(!unlocked)
+                            }
+                            .padding(.top, 6)
+                            Text(unlocked
+                                 ? """
+                                Lowering this limit deletes the oldest items. New copies replace old ones when the limit is reached.
+                                """
+                                 : """
+                                New copies replace old ones when the limit is reached. Unlock Pro to change this limit.
+                                """
+                            )
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .padding(.trailing, 6)
-                    }
-                    ForEach(CopiedContentType.allCases, id: \.self) { type in
-                        Toggle(isOn: Binding(
-                            get: {
-                                enabledContentTypes.contains(type)
-                            },
-                            set: { isOn in
-                                if isOn {
-                                    enabledContentTypes.insert(type)
-                                } else {
-                                    enabledContentTypes.remove(type)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if !unlocked {
+                            VStack(alignment: .leading) {
+                                HStack {
+                                    Text("Maximum pinned items")
+                                    Spacer()
+                                    Text("\(PurchaseManager.freeMaxPinnedEntries)")
+                                        .foregroundStyle(.secondary)
+                                        .padding(.trailing, 3)
                                 }
-                            })
-                        ) {
-                            HStack {
-                                Image(systemName: type.symbolName)
-                                    .frame(width: 22, alignment: .center)
-                                Text(String(describing: type).capitalized)
-                                    .frame(minWidth: 54, alignment: .leading)
-                                Spacer()
-                                Text(caption(for: type))
+                                .padding(.top, 6)
+                                Text("Unlock Pro for unlimited pins.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                    .padding(.trailing, 6)
-                                    .opacity(type == .text ? 1.0 : 0.6)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
+                        } else {
+                            HStack {
+                                Image(systemName: "lock.open")
+                                Text("Pro unlocked")
+                            }
+                            .padding(.top, 12)
+                            Text("Unlimited pinned entries available.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.bottom, 3)
                         }
-                        .disabled(type == .text)
+                    } header: {
+                        Text("History")
+                            .bold()
+                            .padding(.top, 9)
                     }
-                } header: {
-                    Text("Saved Content")
-                        .bold()
-                        .padding(.bottom, 9)
-                } footer: {
-                    Text("Choose which types of content are saved to your clipboard history.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Divider()
-                    .padding(.vertical, 14)
-                Section {
-                    VStack(alignment: .leading) {
+                    .padding(.horizontal, 14)
+                VStack(alignment: .leading) {
+                    Section {
+                        Toggle(isOn: Binding(get: {
+                            launchAtLogin
+                        }, set: { newValue in
+                            toggleLaunchAtLogin(newValue)
+                        })) {
+                            Text("Launch at login")
+                        }
+                        .padding(.top, 7)
+                        .disabled(isProcessing)
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .foregroundStyle(.red)
+                                .font(.footnote)
+                        }
+                    } header: {
+                        Text("General")
+                            .bold()
+                    } footer: {
+                        Text("Start Better Clipboard automatically when you log in")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Section {
                         HStack {
-                            Text("Show history shortcut")
+                            Text("Show history")
                             Spacer()
                             HotkeyCaptureField(display: $historyHotkeyDisplay) { keyCode, modifiers in
                                 historyHotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
@@ -172,57 +201,35 @@ struct SettingsPopover: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         HStack {
-                            Text("Maximum items")
+                            Text("Translate selection")
                             Spacer()
-                            TextField("", value: $maxHistoryInput, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 72)
-                                .multilineTextAlignment(.trailing)
-                                .focused($historyFieldFocused)
-                                .onSubmit {
-                                    handleMaxHistoryChange(maxHistoryInput)
-                                }
-                                .disabled(!unlocked)
-                        }
-                        .padding(.top, 6)
-                        Text(unlocked
-                             ? """
-                                Lowering this limit deletes the oldest items. New copies replace old ones when the limit is reached.
-                                """
-                             : """
-                                New copies replace old ones when the limit is reached. Unlock Pro to change this limit.
-                                """
-                        )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if unlocked {
-                        HStack {
-                            Image(systemName: "lock.open")
-                            Text("Pro unlocked")
-                        }
-                        .padding(.top, 12)
-                        Text("Unlimited pinned entries available.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        VStack(alignment: .leading) {
-                            HStack {
-                                Text("Maximum pinned items")
-                                Spacer()
-                                Text("\(PurchaseManager.freeMaxPinnedEntries)")
-                                    .foregroundStyle(.secondary)
-                                    .padding(.trailing, 3)
+                            HotkeyCaptureField(display: $translationHotkeyDisplay) { keyCode, modifiers in
+                                translationHotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
+                                UserDefaults.standard.set(keyCode, forKey: HotkeySettings.translationKeyCodeKey)
+                                UserDefaults.standard.set(modifiers, forKey: HotkeySettings.translationModifiersKey)
+                                NotificationCenter.default.post(name: .translationHotKeyChanged, object: nil)
                             }
-                            .padding(.top, 6)
-                            Text("Unlock Pro for unlimited pins.")
+                        }
+                        .padding(.top, 2)
+                        .disabled(!isTranslationAvailable)
+                        .opacity(isTranslationAvailable ? 1.0 : 0.6)
+                        if !isTranslationAvailable {
+                            Text("Translation requires macOS 26 and a supported Mac.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text("Click to change the shortcut. Avoid conflicts with system shortcuts.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+                    } header: {
+                        Text("Keyboard Shortcuts")
+                            .bold()
+                            .padding(.top, 9)
                     }
+                    Spacer()
                     if let product = manager.products.first, !unlocked {
                         Button(action: {
                             Task {
@@ -246,15 +253,11 @@ struct SettingsPopover: View {
                         .tint(.green)
                         .padding(.top, 8)
                     }
-                } header: {
-                    Text("History")
-                        .bold()
                 }
-                .padding(.bottom, 3)
             }
         }
         .padding()
-        .frame(width: 250)
+        .frame(width: 525)
         .onAppear {
             maxHistoryInput = maxHistoryEntries
             loadLaunchAtLoginState()

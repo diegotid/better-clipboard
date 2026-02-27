@@ -266,8 +266,8 @@ final class WindowController: NSObject, NSMenuItemValidation {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            Task { @MainActor in
-                guard let self else { return }
+            guard let self else { return }
+            MainActor.assumeIsolated {
                 self.handlePinnedStateChanged(notification)
             }
         }
