@@ -8,6 +8,7 @@
 import SwiftUI
 import ServiceManagement
 import StoreKit
+import Translation
 
 struct SettingsPopover: View {
     @EnvironmentObject private var clipboard: ClipboardController
@@ -27,6 +28,7 @@ struct SettingsPopover: View {
     )
     @State private var maxHistoryInput: Int = PurchaseManager.freeMaxCopiedEntries
     @State private var enabledContentTypes: Set<CopiedContentType> = Set(CopiedContentType.allCases)
+    @State private var isTranslationAvailable = true
     
     @FocusState private var historyFieldFocused: Bool
     
@@ -70,6 +72,37 @@ struct SettingsPopover: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                Divider()
+                    .padding(.vertical, 14)
+                Section {
+                    HStack {
+                        Text("Translate shortcut")
+                        Spacer()
+                        HotkeyCaptureField(display: $translationHotkeyDisplay) { keyCode, modifiers in
+                            translationHotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
+                            UserDefaults.standard.set(keyCode, forKey: HotkeySettings.translationKeyCodeKey)
+                            UserDefaults.standard.set(modifiers, forKey: HotkeySettings.translationModifiersKey)
+                            NotificationCenter.default.post(name: .translationHotKeyChanged, object: nil)
+                        }
+                    }
+                    .padding(.top, 2)
+                    Text("Click to change the shortcut. Avoid conflicts with system shortcuts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !isTranslationAvailable {
+                        Text("Translation requires macOS 26 and a supported Mac.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } header: {
+                    Text("Translation")
+                        .bold()
+                        .padding(.bottom, 9)
+                }
+                .disabled(!isTranslationAvailable)
+                .opacity(isTranslationAvailable ? 1.0 : 0.6)
                 Divider()
                     .padding(.vertical, 14)
                 Section {
@@ -131,17 +164,6 @@ struct SettingsPopover: View {
                                 UserDefaults.standard.set(keyCode, forKey: HotkeySettings.keyCodeKey)
                                 UserDefaults.standard.set(modifiers, forKey: HotkeySettings.modifiersKey)
                                 NotificationCenter.default.post(name: .historyHotKeyChanged, object: nil)
-                            }
-                        }
-                        .padding(.top, 2)
-                        HStack {
-                            Text("Translate shortcut")
-                            Spacer()
-                            HotkeyCaptureField(display: $translationHotkeyDisplay) { keyCode, modifiers in
-                                translationHotkeyDisplay = HotkeySettings.displayString(keyCode: keyCode, modifiers: modifiers)
-                                UserDefaults.standard.set(keyCode, forKey: HotkeySettings.translationKeyCodeKey)
-                                UserDefaults.standard.set(modifiers, forKey: HotkeySettings.translationModifiersKey)
-                                NotificationCenter.default.post(name: .translationHotKeyChanged, object: nil)
                             }
                         }
                         .padding(.top, 2)
@@ -236,6 +258,7 @@ struct SettingsPopover: View {
         .onAppear {
             maxHistoryInput = maxHistoryEntries
             loadLaunchAtLoginState()
+            updateTranslationAvailability()
             Task {
                 await manager.loadProducts()
                 await checkLifetimeUnlocked()
@@ -316,6 +339,13 @@ private extension SettingsPopover {
     }
     
     func checkLifetimeUnlocked() async {
+        let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        if isPreview {
+            await MainActor.run {
+                self.unlocked = false
+            }
+            return
+        }
         var foundEntitlement = false
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
@@ -326,6 +356,20 @@ private extension SettingsPopover {
         }
         await MainActor.run {
             self.unlocked = foundEntitlement
+        }
+    }
+
+    func updateTranslationAvailability() {
+        guard #available(macOS 26.0, *) else {
+            isTranslationAvailable = false
+            return
+        }
+        Task {
+            let availability = LanguageAvailability()
+            let supported = await availability.supportedLanguages
+            await MainActor.run {
+                isTranslationAvailable = !supported.isEmpty
+            }
         }
     }
     
