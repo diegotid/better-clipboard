@@ -2,25 +2,23 @@
 
 Better Clipboard is a native macOS clipboard manager focused on fast history, pinned items, translation, and thoughtful content handling.
 
-[![Download on the App Store](./Promotional/Badges/Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg)](https://apps.apple.com/app/better-clipboard/id6756281636)
+<a href="./Promotional/Previews/better-clipboard.mp4">
+  <img src="./Promotional/Previews/better-clipboard-preview.png" width="800" alt="Better Clipboard preview" />
+</a>
 
-[Watch the preview video](./Promotional/Previews/better-clipboard.mp4)
+## Installation
 
-## What This Repo Is
+Get the supported release on the App Store:
+
+<a href="https://apps.apple.com/app/better-clipboard/id6756281636" target="_blank">
+  <img src="http://www.cuatro.studio/appstore.svg" height="40" alt="Download on the App Store" />
+</a>
+
+...or clone this repo and open [Better.xcodeproj](./Better.xcodeproj) in Xcode.
+
+## What This Repo Includes
 
 This repository is the public source mirror for Better Clipboard.
-
-It exists for:
-
-- transparency into the app's architecture and UI
-- issue tracking and user feedback
-- source sharing for the public-facing parts of the project
-
-The App Store release is the supported production build.
-
-## Important Scope Note
-
-This repository is source-available, not a full reproduction of the commercial App Store build.
 
 Source builds from this repo:
 
@@ -30,7 +28,7 @@ Source builds from this repo:
 
 If you want the supported real-world app experience, install Better Clipboard from the App Store.
 
-## Highlights
+## Features
 
 - Menubar-first clipboard history UI
 - Searchable clipboard history
@@ -38,12 +36,6 @@ If you want the supported real-world app experience, install Better Clipboard fr
 - Content-aware rendering for text, links, images, code, and emoji
 - Translation tools and writing-focused utilities
 - Keyboard shortcut support and launch-at-login settings
-
-## Preview
-
-The repository includes a short app preview here:
-
-- [Promotional/Previews/better-clipboard.mp4](./Promotional/Previews/better-clipboard.mp4)
 
 ## Building Locally
 
@@ -82,6 +74,11 @@ Helpful reports usually include:
 
 If a bug only affects the App Store build, please say so explicitly in the report.
 
+## Support
+
+- Use [GitHub Issues](https://github.com/diegotid/better-clipboard/issues/new/choose) for bugs and feature requests
+- For other questions, contact [diego@cuatro.studio](mailto:diego@cuatro.studio)
+
 ## Contributing
 
 Small fixes and focused pull requests are welcome.
@@ -101,6 +98,4 @@ Before opening a larger PR:
 
 ## License
 
-This repository currently does not include an open-source license.
-
-Until a license is added, please treat it as source-available code provided for transparency, issue tracking, and community feedback.
+Licensed under the [GNU General Public License v3.0](./LICENSE).
